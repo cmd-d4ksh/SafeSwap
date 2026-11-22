@@ -14,28 +14,42 @@
     }
   </script>
 </head>
-<body>
+<body class="intro-on">
   <div id="scene" aria-hidden="true"></div>
 
-  <header class="brand">
-    <strong>SafeSwap</strong><span>Gym</span>
-  </header>
+  <div class="brand"><strong>SafeSwap</strong> Gym</div>
+  <div class="hint" id="sceneHint">Drag to look around · scroll to zoom · tap a machine</div>
 
-  <ol class="steps" aria-label="Progress">
-    <li data-step="0">Machine</li>
-    <li data-step="1">Exercise</li>
-    <li data-step="2">What hurts</li>
-    <li data-step="3">Safe swaps</li>
-  </ol>
+  <!-- Front-door welcome -->
+  <section id="intro" class="intro" aria-labelledby="introTitle">
+    <div class="intro-card">
+      <p class="eyebrow">First time here?</p>
+      <h1 id="introTitle">Welcome to SafeSwap Gym</h1>
+      <p>Tell us which machine you were going to use and what hurts. We'll show you a safe exercise to do instead, and where to find it in the gym.</p>
+      <button id="enter" class="btn-primary">Walk in</button>
+      <button id="skip" class="btn-link">Skip the walk-in</button>
+    </div>
+  </section>
 
-  <aside id="panel" class="panel" aria-live="polite"></aside>
+  <aside id="panel" class="panel" hidden>
+    <div class="panel-head">
+      <button id="navBack" class="nav-btn" aria-label="Go back">‹ Back</button>
+      <span id="stepText" class="step-text">Step 1 of 4</span>
+      <button id="navRestart" class="nav-btn" aria-label="Start over">↺ Start over</button>
+    </div>
+    <nav class="progress" aria-label="Steps">
+      <button data-step="0"><span>1</span>Machine</button>
+      <button data-step="1"><span>2</span>Exercise</button>
+      <button data-step="2"><span>3</span>What hurts</button>
+      <button data-step="3"><span>4</span>Safe swap</button>
+    </nav>
+    <div id="panelBody" class="panel-body" aria-live="polite"></div>
+    <footer class="panel-foot">
+      Synthetic data, not medical advice. If pain is sharp or getting worse, see a physio. · <a href="classic.html">Classic view</a>
+    </footer>
+  </aside>
 
   <div id="hoverTip" class="hover-tip" hidden></div>
-
-  <footer class="foot">
-    <span>Synthetic data · not medical advice</span>
-    <a href="classic.html">Classic view</a>
-  </footer>
 
   <script type="module" src="gym.js"></script>
 </body>
