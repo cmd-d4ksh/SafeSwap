@@ -1,6 +1,7 @@
 # Technical Report: Exercise Substitution & Injury-Safe Search
 
 **Course:** Advanced Algorithms, CIA 3 (Real-World Application Project)
+**Team:** Daksh Shah (2402180) · Laksh Merani (2408098)
 **Stack:** Java 17 · Spring Boot 3.2 (REST) · plain JavaScript frontend · JSON file store
 **Assessed algorithms:** (1) Trie + KMP string matching, (2) Bloom filter, all implemented by hand in `backend/src/main/java/com/exsub/algo/`
 
@@ -396,12 +397,12 @@ On the shipped 285-exercise catalog: n = 315 pairs, m = 3,020 bits (384 B), k = 
 
 ## 9. Individual contributions
 
-> *To be completed by the team before submission.*
-
 | Team member | Register no. | Contributions (algorithms, modules, tests, report sections) |
 |---|---|---|
-| Member 1: ______________________ | __________ | |
-| Member 2: ______________________ | __________ | |
+| Daksh Shah | 2402180 | **Trie** (`Trie.java`, word-suffix indexing, `CatalogIndex`) and **KMP** (`KmpMatcher.java`); search endpoints (autocomplete, text search); gym station placement (`GymService`) and form-guide motion selection (`FormGuideService`); 3D gym frontend and coach (`gym.js`, `rig.js`); Trie/KMP tests (T1–T8, K1–K8); report sections 1–2, 3.1–3.2. |
+| Laksh Merani | 2408098 | **Bloom filter** (`BloomFilter.java`, `BitArray.java`, `HashFunctions.java`, optimal m/k sizing) and the safety pipeline (`RuleEngine`, `ContraindicationIndex`, `SubstitutionEngine`); weekly plan builder (`PlanService`); data generator, loader validation and dataset upload; benchmarks (`BenchmarkRunner`) and charts; Bloom and workflow tests (B1–B8, S1–S10); report sections 3.3, 4–8. |
+
+Both members: problem formulation, injury rules, API design, integration testing, README and viva preparation.
 
 ---
 

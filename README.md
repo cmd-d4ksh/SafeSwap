@@ -1,5 +1,7 @@
 # Exercise Substitution & Injury-Safe Search
 
+**Team:** Daksh Shah (2402180) · Laksh Merani (2408098) · Advanced Algorithm CIA 3, 2026–27
+
 **Advanced Algorithms — CIA 3, Real-World Application Project**
 
 A gym-goer can't do an exercise because of an injury or limitation, for example a back squat with a lower-back strain. This app returns a **ranked list of safe substitute exercises** that still train the same muscles. For every result it shows **which algorithm found it** and **why each candidate was accepted or rejected**.

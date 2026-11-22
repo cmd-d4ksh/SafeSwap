@@ -4,9 +4,8 @@
 
 | Team member | Register no. / ID | Role |
 |---|---|---|
-| _Member 1_ | _ID_ | _e.g. Trie + KMP, search APIs, tests_ |
-| _Member 2_ | _ID_ | _e.g. Bloom filter, safety pipeline, plan builder, benchmarks_ |
-| _Member 3 (optional)_ | _ID_ | _e.g. 3D frontend, report_ |
+| Daksh Shah | 2402180 | Trie + KMP, search APIs, gym station placement, form guides, 3D frontend |
+| Laksh Merani | 2408098 | Bloom filter, safety pipeline, weekly plan builder, data validation and upload, benchmarks |
 
 ## 1. Real-world problem
 People with a minor injury (lower-back strain, shoulder impingement, jumper's knee, tennis elbow, …) usually keep training, but they do not know **which exercises to avoid** and **what to do instead**. Beginners also don't know machine names or correct form. Generic plans ignore the injury, and web search answers are not checked against it, which risks making the injury worse or drives people to stop training.
