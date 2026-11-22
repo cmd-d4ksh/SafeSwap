@@ -267,7 +267,7 @@ curl -s -X POST http://localhost:8085/api/substitutions -H 'Content-Type: applic
 
 ---
 
-## Tests (40, all passing)
+## Tests (43, all passing)
 
 ```bash
 cd backend && mvn test
@@ -279,7 +279,7 @@ cd backend && mvn test
 | `TrieKmpTest$KmpTests` | 8 | failure-function table, overlapping matches, real instruction text, no match / pattern longer than text [edge], whole-text and 1-char pattern [edge], empty pattern [edge], property test vs naive, ≤ 2n comparisons |
 | `BloomFilterTest` | 8 | no false negatives, empty filter [edge], optimal m/k, FPP **at expected saturation** [edge], **over-saturation** degradation [edge], m=1 degenerate [edge], hash test vectors, invalid params |
 | `SubstitutionEngineTest` | 10 | happy path, **saturated Bloom ⇒ no rejection without rule confirmation**, **injury with zero contraindications** [edge], **no safe substitute** [edge], **unknown injury tag** [edge], unknown/ambiguous exercise, **empty catalog** [edge], **duplicate & invalid rows** [edge], KMP keyword filter, rule verdicts |
-| `ApiIntegrationTest` | 6 | HTTP layer: stats, autocomplete, validation errors, substitution, text search, gym stations |
+| `ApiIntegrationTest` | 9 | HTTP layer: stats, autocomplete, validation errors, substitution, text search, gym stations, form guides (KMP motion mapping), **safe weekly plans** (every planned exercise re-checked by the rule engine), **dataset upload** (empty / duplicate / invalid rows, reset) |
 
 ---
 
