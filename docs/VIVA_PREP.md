@@ -184,6 +184,9 @@ Duplicates in the data file are dropped at load and listed in `/api/catalog/stat
 **Q10a. Isn't the 3D gym just decoration? Where's the algorithm?**
 The 3D gym only replaces typing with pointing. Every list it shows comes from the backend: a station's exercises come from **trie** lookups (exact tag-trie matches on equipment, plus name-trie word-prefix matches on keywords like `leg press`), and the swaps come from the same `/api/substitutions` pipeline (trie → Bloom filter → rule confirmation → ranking). The browser holds no catalog and no rules. It was built for first-time gym-goers who don't know exercise names but can point at a machine and at where it hurts.
 
+**Q10c. How is the weekly plan built, and can it ever include something unsafe?**
+`POST /api/plans` screens all exercises for the injury: the Bloom filter clears most instantly, and every "maybe" is confirmed by the exact rule engine. Only exercises that pass go into a muscle-slot template (push/pull/legs etc.), ranked for beginners (machines and cables first). A test rebuilds plans for three injuries × 2–4 days and re-checks every planned exercise with the rule engine. If a muscle has no safe option, the slot is dropped, never filled with an unsafe exercise.
+
 **Q10b. How does the coach know which movement to show?**
 The server decides. `FormGuideService` keeps an ordered list of keyword → motion rules and builds one **KMP matcher** (failure function computed once) per keyword at startup. For an exercise it scans the lower-cased name with each matcher in order and returns the first hit, e.g. "Machine Leg Press" → `leg press` → `legpress`. Order matters: `leg press` is checked before `squat`, and `rotation`/`throw` before `row`, because "throw" contains "row" (there is a regression test for this). If nothing matches, the movement pattern's default is used. The browser only receives the motion name and plays its animation; it never classifies exercises.
 
@@ -194,7 +197,7 @@ Hand-written: `Trie`, `KmpMatcher`, `BloomFilter`, `BitArray`, both hash functio
 
 ## 6. Live demo script (2 minutes)
 
-1. Start the backend and frontend (see README). Open http://localhost:5173 and press **Walk in**: the doors open and you walk into the gym.
+1. Start the backend and frontend (see README). Open http://localhost:5173 and press **Walk in**: the doors open and you walk into the gym. Tap the **knee**, pick 3 days, and **Build my plan**: show that the Legs day has no squats or leg press (they are under "Avoid for now"), today's machines glow, and **How to do it** opens the coach. Then use **Swap one exercise at a machine** for the next step.
 2. Tap **Squat Rack** → **Barbell Back Squat** → tap the **lower back** on the body. The stations holding the swaps glow in their zone colour; press **Show me where** on a card. Open **"How we checked"** and walk through trie → Bloom → confirmation. Press **How to do it** on Air Squat: the 3D coach demonstrates it (try Slow-mo and Side view), and the small print says which KMP keyword picked the demo. Show **Back** and **Start over**.
 3. Footer → **Classic view**. Type `overhead pr` and point at the trie line under the box: *"15 nodes visited out of 4,871"*.
 4. Choose **Barbell Overhead Press** + **Shoulder impingement**, keyword `shoulder`, and submit.
@@ -206,4 +209,4 @@ Hand-written: `Trie`, `KmpMatcher`, `BloomFilter`, `BitArray`, both hash functio
    * the **Rejected** list with confirmed reasons.
 6. Error states: submit `Squat` (ambiguous → suggestions), then an injury with zero contraindications (`finger-pulley-strain`), where nothing is rejected.
 7. Scroll to the stats card: m = 3,020, k = 7, measured FPP ≈ 1.51 %, 2 duplicate rows rejected at load.
-8. Terminal: run `mvn test` (41 green) and open `docs/benchmark_results.md`.
+8. Terminal: run `mvn test` (42 green) and open `docs/benchmark_results.md`.

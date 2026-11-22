@@ -8,6 +8,7 @@ import com.exsub.model.Exercise;
 import com.exsub.service.CatalogService;
 import com.exsub.service.FormGuideService;
 import com.exsub.service.GymService;
+import com.exsub.service.PlanService;
 import com.exsub.service.SearchService;
 import com.exsub.service.SubstitutionService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,15 +33,17 @@ public class ApiController {
     private final SubstitutionService substitutionService;
     private final GymService gymService;
     private final FormGuideService formGuideService;
+    private final PlanService planService;
 
     public ApiController(CatalogService catalogService, SearchService searchService,
                          SubstitutionService substitutionService, GymService gymService,
-                         FormGuideService formGuideService) {
+                         FormGuideService formGuideService, PlanService planService) {
         this.catalogService = catalogService;
         this.searchService = searchService;
         this.substitutionService = substitutionService;
         this.gymService = gymService;
         this.formGuideService = formGuideService;
+        this.planService = planService;
     }
 
     @GetMapping("/gym/stations")
@@ -102,6 +105,12 @@ public class ApiController {
         Exercise ex = catalogService.snapshot().catalog().byId(id);
         if (ex == null) throw ApiException.notFound("EXERCISE_NOT_FOUND", "No exercise with id '" + id + "'.", List.of());
         return ex;
+    }
+
+    /** Safe beginner weekly plan for an injury (or "none"); every exercise passes Bloom + rule confirmation. */
+    @PostMapping("/plans")
+    public PlanService.Plan plan(@RequestBody(required = false) PlanService.PlanRequest request) {
+        return planService.build(request);
     }
 
     @PostMapping("/substitutions")

@@ -314,3 +314,27 @@ body.intro-on .label { opacity: 0; pointer-events: none; }
   .coach-stage { height: 240px; }
   .nav-btn { padding: 7px 9px; font-size: 13px; }
 }
+
+/* ---------- plan flow ---------- */
+.btn-secondary { width: 100%; margin-top: 10px; padding: 13px; border-radius: 14px; border: 1px solid #c9ced5; background: #fff; font-weight: 700; font-size: 15px; }
+.btn-secondary:hover { background: var(--soft); }
+.or-swap { display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: center; align-items: baseline; margin-top: 16px; font-size: 14px; color: var(--muted); }
+.day-opt .big { font-size: 17px; font-weight: 800; margin-right: 4px; }
+.plan-sum { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+.day-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.day-tab { flex: 1; min-width: 92px; padding: 9px 10px; border-radius: 12px; border: 1px solid var(--line); background: #fff; font-weight: 700; font-size: 14px; text-align: left; }
+.day-tab small { display: block; font-size: 11px; color: var(--faint); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.day-tab:hover { border-color: var(--text); }
+.day-tab.on { background: var(--text); border-color: var(--text); color: #fff; }
+.day-tab.on small { color: rgba(255,255,255,.7); }
+.card .dose { margin-top: 6px; font-size: 15px; font-weight: 700; color: var(--accent); }
+.card .dose b { color: var(--text); }
+.card .why { font-size: 14px; }
+.avoid-box { margin-top: 14px; border-radius: 12px; padding: 12px 14px; background: #fdecec; color: #8a1f1f; font-size: 14px; }
+.avoid-box h3 { margin: 0 0 6px; font-size: 14px; }
+.avoid-box ul { margin: 0; padding-left: 18px; }
+.avoid-box li { margin-bottom: 6px; }
+.avoid-box li b { display: block; color: #6b1414; }
+.tips { margin: 4px 0 0; padding-left: 18px; }
+.tips li { margin-bottom: 4px; }

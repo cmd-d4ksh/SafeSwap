@@ -29,8 +29,14 @@ async function api(path, options) {
 const state = {
   step: 0, maxStep: 0, stations: [], injuries: [],
   station: null, exercise: null, injury: null, result: null, where: {},
-  guide: null,        // open form guide: { data, back: 'results' | 'exercise' }
+  guide: null,        // open form guide: { data, back: 'results' | 'exercise' | 'hurt' | 'plan' }
   zone: 'All',
+  flow: 'plan',       // 'plan' (pain check -> days -> weekly plan) or 'swap' (machine -> exercise -> pain -> swap)
+  painChosen: false, planDays: 3, plan: null, planDay: 0,
+};
+const FLOWS = {
+  plan: { steps: ['Pain check', 'Your week', 'Your plan'], titles: ['Does anything hurt?', 'How often can you train?', 'Your safe plan'] },
+  swap: { steps: ['Machine', 'Exercise', 'What hurts', 'Safe swap'], titles: ['Choose a machine', 'Choose the exercise', 'Tell us what hurts', 'Your safe swap'] },
 };
 
 const ZONES = {
@@ -754,17 +760,21 @@ function setHover(id) {
 }
 function refreshHighlights() {
   const swaps = swapCounts();
+  const swapFlow = state.flow === 'swap', planView = state.flow === 'plan' && state.step === 2;
   for (const [id, o] of stationObjects) {
-    const selected = state.station?.id === id && state.step > 0 && state.step < 3;
+    const selected = swapFlow && state.station?.id === id && state.step > 0 && state.step < 3;
     const isSwap = swaps[id] > 0;
-    const zoneOn = state.step === 0 && state.zone !== 'All' && o.zone === state.zone;
+    const zoneOn = swapFlow && state.step === 0 && state.zone !== 'All' && o.zone === state.zone;
     o.pad.material.opacity = selected ? 0.3 : isSwap ? 0.22 : hoverId === id ? 0.2 : zoneOn ? 0.1 : 0;
     o.ring.material.opacity = selected || isSwap || hoverId === id ? 0.9 : zoneOn ? 0.5 : 0;
     o.label.classList.toggle('selected', selected);
     o.label.classList.toggle('hover', hoverId === id && !selected && !isSwap);
     o.label.classList.toggle('has-swap', isSwap);
-    o.label.classList.toggle('dim', (state.step === 3 && !isSwap) || (state.step > 0 && state.step < 3 && !selected) || (state.step === 0 && state.zone !== 'All' && !zoneOn));
-    o.label.querySelector('.badge').textContent = isSwap ? `${swaps[id]} swap${swaps[id] > 1 ? 's' : ''}` : '';
+    o.label.classList.toggle('dim', swapFlow
+      ? (state.step === 3 && !isSwap) || (state.step > 0 && state.step < 3 && !selected) || (state.step === 0 && state.zone !== 'All' && !zoneOn)
+      : planView && !isSwap);
+    const unit = planView ? 'move' : 'swap';
+    o.label.querySelector('.badge').textContent = isSwap ? `${swaps[id]} ${unit}${swaps[id] > 1 ? 's' : ''}` : '';
   }
 }
 
@@ -862,7 +872,7 @@ function finishIntro() {
   setTimeout(() => { $('#intro').hidden = true; }, 600);
   onResize();
   if (camera) { const o = overviewPose(); camera.position.copy(o.pos); controls.target.copy(o.target); }
-  renderWelcome();
+  renderPain();
 }
 
 let lastDeclutter = 0;
@@ -913,14 +923,19 @@ function onResize() {
 // ------------------------------------------------------------------
 // Guided flow (panel)
 // ------------------------------------------------------------------
-const STEP_TITLES = ['Choose a machine', 'Choose the exercise', 'Tell us what hurts', 'Your safe swap'];
-function setStep(n) {
+function setStep(n, flow = state.flow) {
+  if (flow !== state.flow) { state.flow = flow; state.maxStep = n; }
+  const F = FLOWS[state.flow];
   state.step = n;
   state.maxStep = Math.max(state.maxStep, n);
-  if (n !== 3) state.guide = null;
-  $('#stepText').innerHTML = `<span>Step ${n + 1} of 4</span>${STEP_TITLES[n]}`;
-  $('#navBack').disabled = n === 0;
-  $('#navRestart').disabled = n === 0 && !state.station;
+  state.guide = null;
+  $('#stepText').innerHTML = `<span>Step ${n + 1} of ${F.steps.length}</span>${F.titles[n]}`;
+  $('#navBack').disabled = n === 0 && !(state.flow === 'swap' && state.plan);
+  $('#navRestart').disabled = state.flow === 'plan' && n === 0 && !state.injury;
+  const nav = $('.progress');
+  nav.style.gridTemplateColumns = `repeat(${F.steps.length}, 1fr)`;
+  nav.innerHTML = F.steps.map((t, i) => `<button data-step="${i}">${t}</button>`).join('');
+  nav.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => goTo(+b.dataset.step)));
   document.querySelectorAll('.progress button').forEach((b) => {
     const s = +b.dataset.step;
     b.classList.toggle('active', s === n);
@@ -931,33 +946,46 @@ function setStep(n) {
   refreshHighlights();
 }
 function canGoTo(s) {
+  if (state.flow === 'plan') return s === 0 || (s === 1 && state.painChosen) || (s === 2 && !!state.plan);
   if (s === 0) return true;
   if (s === 1) return !!state.station;
   if (s === 2) return !!state.exercise;
   return !!state.result;
 }
 function goTo(s) {
+  if (state.flow === 'plan') return s === 0 ? renderPain() : s === 1 ? renderDays() : state.plan && renderPlan(false);
   if (s === 0) renderWelcome();
   else if (s === 1 && state.station) openStation(state.station.id);
   else if (s === 2 && state.exercise) renderHurt();
   else if (s === 3 && state.result) renderResults(false);
 }
 function goBack() {
-  if (state.guide) { const back = state.guide.back; state.guide = null; return back === 'results' ? renderResults(false) : goTo(state.step); }
-  if (state.step > 0) goTo(state.step === 2 && !state.station ? 0 : state.step - 1);
+  if (state.guide) { const back = state.guide.back; state.guide = null; return back === 'results' ? renderResults(false) : back === 'plan' ? renderPlan(false) : goTo(state.step); }
+  if (state.flow === 'swap' && state.step === 0 && state.plan) { state.flow = 'plan'; return renderPlan(false); }
+  if (state.step > 0) goTo(state.flow === 'swap' && state.step === 2 && !state.station ? 0 : state.step - 1);
 }
 function restart() {
-  Object.assign(state, { station: null, exercise: null, injury: null, result: null, where: {}, maxStep: 0, guide: null, zone: 'All' });
-  renderWelcome();
+  Object.assign(state, { station: null, exercise: null, injury: null, result: null, where: {}, maxStep: 0, guide: null, zone: 'All',
+    flow: 'plan', painChosen: false, plan: null, planDay: 0 });
+  renderPain();
 }
 function swapCounts() {
   const out = {};
+  if (state.flow === 'plan') {
+    if (state.step === 2 && state.plan && !state.guide) for (const it of state.plan.days[state.planDay].items) if (it.stationId) out[it.stationId] = (out[it.stationId] || 0) + 1;
+    return out;
+  }
   if (state.step !== 3 || !state.result) return out;
   for (const r of state.result.results) { const loc = state.where[r.id]; if (loc) out[loc.stationId] = (out[loc.stationId] || 0) + 1; }
   return out;
 }
 function onStationClick(id) {
-  if (state.step === 3) {
+  if (state.flow === 'plan' && state.step === 2) {
+    const card = body.querySelector(`.card[data-station="${id}"]`);
+    if (card) { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); selectCard(card); }
+    return;
+  }
+  if (state.flow === 'swap' && state.step === 3) {
     if (state.guide) return;
     const card = body.querySelector(`.card[data-station="${id}"]`);
     if (card) { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); selectCard(card); }
@@ -968,12 +996,13 @@ function onStationClick(id) {
 
 // Step 1: choose a machine
 function renderWelcome() {
-  setStep(0);
+  setStep(0, 'swap');
   if (webglOk) state.zone === 'All' ? setOverview() : flyToZone(state.zone);
   const zones = ZONE_ORDER.filter((z) => state.stations.some((s) => s.zone === z));
   const shown = state.zone === 'All' ? zones : [state.zone];
   body.innerHTML = `
     ${webglOk ? '' : '<div class="fallback">3D isn\'t available on this device, but you can use the list below.</div>'}
+    ${state.plan ? '<button class="link back-link" id="toPlan">‹ Back to your plan</button>' : ''}
     <h1>What were you about to use?</h1>
     <p class="lead">${webglOk ? 'Tap a machine in the gym or pick one below. Not sure? Search for the exercise.' : 'Pick the machine below, or search for the exercise.'}</p>
     <div class="search-wrap"><span aria-hidden="true">⌕</span><input class="search" id="q" placeholder="Search an exercise, e.g. squat" autocomplete="off" aria-label="Search exercises by name"></div>
@@ -997,6 +1026,7 @@ function renderWelcome() {
     b.addEventListener('mouseleave', () => setHover(null));
   });
   body.querySelectorAll('[data-zone]').forEach((b) => b.addEventListener('click', () => { state.zone = b.dataset.zone; renderWelcome(); }));
+  $('#toPlan')?.addEventListener('click', () => { state.flow = 'plan'; renderPlan(false); });
   let timer;
   $('#q').addEventListener('input', (e) => {
     clearTimeout(timer);
@@ -1032,7 +1062,7 @@ async function openStation(id) {
   if (!st) return;
   if (state.station?.id !== id) { state.exercise = null; state.result = null; state.maxStep = 1; }
   state.station = st;
-  setStep(1);
+  setStep(1, 'swap');
   if (webglOk) flyToStation(id);
   const head = `<div class="eyebrow-zone" style="--zc:${zoneOf(st.zone).color}"><i></i>${esc(st.zone)}</div><h1>${esc(st.name)}</h1>`;
   body.innerHTML = `${head}<p class="lead">${esc(st.description)}</p><p class="loading">Loading exercises…</p>`;
@@ -1086,7 +1116,7 @@ function bodySvg() {
     ${spots}</svg>`;
 }
 function renderHurt() {
-  setStep(2);
+  setStep(2, 'swap');
   const ex = state.exercise;
   const areas = [...new Set(state.injuries.map((i) => i.area))];
   body.innerHTML = `
@@ -1119,6 +1149,119 @@ function chooseArea(area, keepTag) {
   $('#find').disabled = !state.injury;
 }
 
+// ---------- Plan flow: pain check -> days -> safe weekly plan (POST /api/plans) ----------
+function renderPain() {
+  setStep(0, 'plan');
+  if (webglOk) setOverview();
+  const areas = [...new Set(state.injuries.map((i) => i.area))];
+  body.innerHTML = `
+    <h1>Before we start: does anything hurt?</h1>
+    <p class="lead">Tap where you feel pain: a muscle, a joint, or around a bone. We'll build your week around it and leave out anything that could make it worse.</p>
+    <div class="hurt-grid">
+      <div class="body-wrap">${bodySvg()}</div>
+      <div><p class="lead" style="margin:0 0 10px">Or choose an area:</p>
+        <div class="chips">${areas.map((a) => `<button class="chip" data-area="${esc(a)}">${esc(a)}</button>`).join('')}</div></div>
+    </div>
+    <div class="options" id="opts"></div>
+    <button class="btn-primary" id="find" disabled>Continue</button>
+    <button class="btn-secondary" id="noPain">Nothing hurts. Build me a normal plan</button>
+    <div class="or-swap"><span>Already at a machine?</span><button class="link" id="toSwap">Swap one exercise instead ›</button></div>`;
+  body.querySelectorAll('[data-area]').forEach((el) => el.addEventListener('click', () => chooseArea(el.dataset.area)));
+  $('#find').addEventListener('click', () => { state.painChosen = true; renderDays(); });
+  $('#noPain').addEventListener('click', () => { state.injury = null; state.painChosen = true; renderDays(); });
+  $('#toSwap').addEventListener('click', () => renderWelcome());
+  const prev = state.injuries.find((i) => i.tag === state.injury);
+  if (prev) chooseArea(prev.area, prev.tag);
+}
+
+const DAY_OPTIONS = [
+  { n: 2, split: 'Upper body · Lower body & core', when: 'Mon · Thu', who: 'Busy week, or brand new to training' },
+  { n: 3, split: 'Push · Pull · Legs', when: 'Mon · Wed · Fri', who: 'The classic beginner split' },
+  { n: 4, split: 'Push · Pull · Legs · Arms & core', when: 'Mon · Tue · Thu · Fri', who: 'You want a bit more volume' },
+];
+function renderDays() {
+  setStep(1, 'plan');
+  const injury = state.injuries.find((i) => i.tag === state.injury);
+  body.innerHTML = `
+    <div class="picked"><span>Pain</span><b>${injury ? esc(injury.hint) : 'None. Full plan'}</b><button class="link" id="chg">Change</button></div>
+    <h1 style="margin-top:14px">How many days a week can you train?</h1>
+    <p class="lead">Each session takes about 45 minutes, including a warm-up.</p>
+    <div class="list">${DAY_OPTIONS.map((o) => `
+      <button class="option day-opt ${state.planDays === o.n ? 'on' : ''}" data-days="${o.n}">
+        <span class="big">${o.n} days</span> ${esc(o.split)}<small>${esc(o.when)} · ${esc(o.who)}</small>
+      </button>`).join('')}</div>
+    <button class="btn-primary" id="build" style="margin-top:6px">Build my plan</button>`;
+  $('#chg').addEventListener('click', renderPain);
+  body.querySelectorAll('[data-days]').forEach((b) => b.addEventListener('click', () => {
+    state.planDays = +b.dataset.days;
+    body.querySelectorAll('[data-days]').forEach((x) => x.classList.toggle('on', x === b));
+  }));
+  $('#build').addEventListener('click', buildPlan);
+}
+async function buildPlan() {
+  const btn = $('#build');
+  btn.disabled = true; btn.textContent = 'Building a safe plan…';
+  try {
+    state.plan = await api('/api/plans', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ injuryTag: state.injury || 'none', daysPerWeek: state.planDays }) });
+    state.planDay = 0;
+    renderPlan(true);
+  } catch (err) {
+    btn.disabled = false; btn.textContent = 'Build my plan';
+    body.insertAdjacentHTML('beforeend', `<div class="error">${esc(err.message)}</div>`);
+  }
+}
+function renderPlan(fly) {
+  const p = state.plan;
+  setStep(2, 'plan');
+  const day = p.days[state.planDay];
+  const cards = day.items.map((it, i) => `
+    <div class="card" data-station="${esc(it.stationId || '')}" style="--zc:${zoneOf(it.zone).color}">
+      <div class="top"><span class="rank">${it.role === 'Warm-up' ? '↻' : i}</span><span class="name">${esc(it.name)}</span></div>
+      <div class="dose">${it.role === 'Warm-up' ? '<b>Warm-up</b> · ' : ''}${esc(it.dose)}</div>
+      <div class="row">Works <b>${it.primaryMuscles.map(plain).join(', ')}</b></div>
+      ${it.stationName ? `<div class="row where"><i></i>${esc(it.stationName)} · ${esc(it.zone)}</div>` : ''}
+      <div class="row why">${esc(it.why)}</div>
+      ${p.injuryTag ? `<div class="safe">✓ ${esc(SAFETY_PLAIN[it.safetyMethod] || 'Safe for your injury')}</div>` : ''}
+      <div class="actions">
+        <button class="btn-small primary" data-guide="${esc(it.id)}">▶ How to do it</button>
+        ${it.stationId && webglOk ? '<button class="btn-small go">Show me where</button>' : ''}
+      </div>
+    </div>`).join('');
+  const s = p.stats;
+  body.innerHTML = `
+    <h1>Your ${p.daysPerWeek}-day safe plan</h1>
+    <div class="plan-sum">
+      <span class="tag ${p.injuryTag ? 'warn' : 'soft'}">${p.injuryTag ? `Around: ${esc(p.injuryName)}` : 'No pain reported'}</span>
+      <span class="tag soft">${p.schedule.map(esc).join(' · ')}</span>
+    </div>
+    <div class="day-tabs" role="tablist">${p.days.map((d, i) => `
+      <button role="tab" class="day-tab ${i === state.planDay ? 'on' : ''}" data-day="${i}"><small>${esc(p.schedule[i])}</small>${esc(d.title)}</button>`).join('')}</div>
+    <p class="lead" style="margin:10px 0 12px">Day ${day.day}: <b>${esc(day.focus)}</b>. The highlighted machines in the gym are today's stations.</p>
+    ${cards}
+    ${p.avoid.length ? `<div class="avoid-box"><h3>✕ Avoid for now</h3><ul>${p.avoid.map((a) => `<li><b>${esc(a.name)}</b>${esc(a.reason)}</li>`).join('')}</ul></div>` : ''}
+    <div class="breath"><b>How to progress safely</b><ul class="tips">${p.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>
+    <details class="how">
+      <summary>How we built this plan</summary>
+      <ol>
+        <li><b>Screened all ${s.candidatesScreened} exercises</b> for your pain${p.injuryTag ? '' : ' (none reported, so all are allowed)'}.</li>
+        ${p.injuryTag ? `<li><b>Bloom filter</b> cleared ${s.bloomNegatives} instantly and flagged ${s.bloomPositives} as "maybe unsafe".</li>
+        <li><b>Every "maybe" was re-checked</b> with the exact injury rules: ${s.confirmedUnsafe} really unsafe, ${s.falsePositivesCleared} false alarm${s.falsePositivesCleared === 1 ? '' : 's'} cleared.</li>` : ''}
+        <li><b>Picked one safe exercise per muscle</b>, preferring guided machines and cables, which are easiest to learn.</li>
+        <li><b>Found each machine</b> with the station tries and <b>chose each demo</b> with KMP keyword matching (${s.elapsedMicros.toLocaleString()} µs on the server).</li>
+      </ol>
+    </details>
+    <button class="restart-big" id="redo">Change pain or days</button>
+    <div class="or-swap"><span>Want something different?</span><button class="link" id="toSwap">Swap one exercise at a machine ›</button></div>`;
+  body.querySelectorAll('[data-day]').forEach((b) => b.addEventListener('click', () => { state.planDay = +b.dataset.day; renderPlan(true); }));
+  body.querySelectorAll('.card').forEach((card) => card.addEventListener('click', (e) => { if (!e.target.closest('[data-guide]')) selectCard(card); }));
+  body.querySelectorAll('[data-guide]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openGuide(b.dataset.guide, 'plan'); }));
+  $('#redo').addEventListener('click', renderPain);
+  $('#toSwap').addEventListener('click', () => renderWelcome());
+  refreshHighlights();
+  if (fly && webglOk) setOverview();
+}
+
 // Step 4: results
 async function findSwaps() {
   const btn = $('#find');
@@ -1146,8 +1289,7 @@ function selectCard(card) {
 }
 function renderResults(fly) {
   const r = state.result;
-  state.guide = null;
-  setStep(3);
+  setStep(3, 'swap');
   const injury = state.injuries.find((i) => i.tag === state.injury);
   const area = injury.area.toLowerCase();
   const noSwap = r.status === 'NO_SAFE_SUBSTITUTE';
@@ -1205,11 +1347,12 @@ async function openGuide(id, back) {
   }
   state.guide = { data: g, back };
   $('#navBack').disabled = false;
-  $('#stepText').innerHTML = `<span>Step ${prevStep + 1} of 4</span>How to do it`;
+  $('#stepText').innerHTML = `<span>Step ${prevStep + 1} of ${FLOWS[state.flow].steps.length}</span>How to do it`;
+  refreshHighlights();
   const injury = state.injuries.find((i) => i.tag === state.injury);
   const loc = (await api(`/api/gym/locate?ids=${encodeURIComponent(g.id)}`).catch(() => ({})))[g.id];
   body.innerHTML = `
-    <button class="link back-link" id="guideBack">‹ Back to ${back === 'results' ? 'your swaps' : back === 'hurt' ? '“Where does it hurt?”' : 'the exercise list'}</button>
+    <button class="link back-link" id="guideBack">‹ Back to ${back === 'results' ? 'your swaps' : back === 'plan' ? 'your plan' : back === 'hurt' ? '“Where does it hurt?”' : 'the exercise list'}</button>
     <h1>${esc(g.name)}</h1>
     <div class="tags">
       <span class="tag">${esc(g.motionLabel)}</span>
@@ -1233,7 +1376,7 @@ async function openGuide(id, back) {
       <div class="dont"><h3>✕ Avoid</h3><ul>${g.mistakes.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>
     </div>
     <div class="breath"><b>Breathing</b>${esc(g.breathing)}</div>
-    ${injury && state.step >= 2 ? `<div class="injury-note"><b>With your ${esc(injury.area.toLowerCase())}</b>${esc(injury.guidance)} Stop if the pain is sharp or above 3 out of 10.</div>` : ''}
+    ${injury && (state.flow === 'plan' || state.step >= 2) ? `<div class="injury-note"><b>With your ${esc(injury.area.toLowerCase())}</b>${esc(injury.guidance)} Stop if the pain is sharp or above 3 out of 10.</div>` : ''}
     ${loc && webglOk ? '<button class="btn-small go wide" id="guideWhere">📍 Show me where in the gym</button>' : ''}
     <p class="fine">Demo picked on the server by ${esc(g.matchedBy)}. ${esc(g.note)}</p>`;
   body.scrollTop = 0;
@@ -1258,7 +1401,6 @@ async function openGuide(id, back) {
 // ------------------------------------------------------------------
 $('#navBack').addEventListener('click', goBack);
 $('#navRestart').addEventListener('click', restart);
-document.querySelectorAll('.progress button').forEach((b) => b.addEventListener('click', () => goTo(+b.dataset.step)));
 
 (async function boot() {
   initScene();

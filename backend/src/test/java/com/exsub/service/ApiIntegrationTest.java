@@ -138,6 +138,40 @@ class ApiIntegrationTest {
     }
 
     @Test
+    void planIsSafeForTheInjuryAndValidatesInput() throws Exception {
+        var snap = catalogService.snapshot();
+        for (String tag : java.util.List.of("lower-back-strain", "patellar-tendinopathy", "shoulder-impingement")) {
+            for (int days = 2; days <= 4; days++) {
+                var plan = new PlanService(catalogService, gymService, formGuideService).build(new PlanService.PlanRequest(tag, days));
+                org.junit.jupiter.api.Assertions.assertEquals(days, plan.days().size());
+                java.util.Set<String> seen = new java.util.HashSet<>();
+                for (var day : plan.days()) {
+                    org.junit.jupiter.api.Assertions.assertTrue(day.items().size() >= 3, tag + " day " + day.title());
+                    for (var it : day.items()) {
+                        var ex = snap.catalog().byId(it.id());
+                        // every planned exercise is truly safe according to the exact rule engine
+                        org.junit.jupiter.api.Assertions.assertTrue(snap.rules().evaluate(ex, tag).isEmpty(), it.name() + " unsafe for " + tag);
+                        org.junit.jupiter.api.Assertions.assertNotNull(it.stationId(), it.name());
+                        if (!"Warm-up".equals(it.role())) org.junit.jupiter.api.Assertions.assertTrue(seen.add(it.id()), "repeated " + it.name());
+                    }
+                }
+                org.junit.jupiter.api.Assertions.assertFalse(plan.avoid().isEmpty());
+            }
+        }
+        mvc.perform(post("/api/plans").contentType(MediaType.APPLICATION_JSON).content("{\"injuryTag\":\"none\",\"daysPerWeek\":3}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days", hasSize(3)))
+                .andExpect(jsonPath("$.days[0].title", is("Push")))
+                .andExpect(jsonPath("$.avoid", empty()));
+        mvc.perform(post("/api/plans").contentType(MediaType.APPLICATION_JSON).content("{\"injuryTag\":\"lower-back-strain\",\"daysPerWeek\":7}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code", is("DAYS_OUT_OF_RANGE")));
+        mvc.perform(post("/api/plans").contentType(MediaType.APPLICATION_JSON).content("{\"injuryTag\":\"broken-leg\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code", is("UNKNOWN_INJURY_TAG")));
+    }
+
+    @Test
     void textSearchUsesKmp() throws Exception {
         mvc.perform(get("/api/exercises/text-search").param("q", "neutral spine"))
                 .andExpect(status().isOk())
