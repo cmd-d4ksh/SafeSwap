@@ -6,6 +6,11 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { makeRig, animate, createCoach } from './rig.js';
 
 const API = new URLSearchParams(location.search).get('api') || 'http://localhost:8085';
@@ -72,7 +77,7 @@ const plain = (m) => MUSCLE_PLAIN[m] || m.replace(/-/g, ' ');
 // 3D scene
 // ------------------------------------------------------------------
 const container = $('#scene');
-let renderer, labelRenderer, scene, camera, controls;
+let renderer, labelRenderer, scene, camera, controls, composer, bloom, grade;
 const stationObjects = new Map(); // id -> {group, pad, label}
 const people = [];                // { rig, motion, phase, dy, prop }
 let doors = [], facade = null, ceiling = null, webglOk = true, skyTex = null, studioBg = null;
@@ -136,6 +141,28 @@ function initScene() {
 
   buildRoom();
   buildOutside();
+  buildDetails();
+  // Cinematic look: light bloom on fixtures/signs, then tone mapping, then vignette + film grain.
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.6, 0.82);
+  composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+  grade = new ShaderPass({
+    uniforms: { tDiffuse: { value: null }, time: { value: 0 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform sampler2D tDiffuse; uniform float time; varying vec2 vUv;
+      float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + time) * 43758.5453); }
+      void main(){
+        vec4 c = texture2D(tDiffuse, vUv);
+        float v = smoothstep(0.95, 0.35, distance(vUv, vec2(0.5)));   // vignette
+        c.rgb *= mix(0.62, 1.0, v);
+        c.rgb = mix(c.rgb, c.rgb * vec3(1.03, 1.0, 0.96), 0.6);         // slight warm grade
+        c.rgb += (rnd(vUv * 900.0) - 0.5) * 0.025;                       // film grain
+        gl_FragColor = c;
+      }`,
+  });
+  composer.addPass(grade);
   new ResizeObserver(onResize).observe(container);
   onResize();
   renderer.domElement.addEventListener('pointermove', onPointerMove);
@@ -708,6 +735,38 @@ function buildOutside() {
   for (const [x, w, h, c] of [[-62, 36, 12, 0x15181d], [62, 36, 10, 0x1a1816]]) box(scene, w, h, Dp, c, x, h / 2, 0);
 }
 
+function buildDetails() {
+  const concrete = mat(0x3a3d42, { roughness: 0.85 });
+  // structural columns on a ~8 m grid, in the aisles between machines (like a real warehouse gym)
+  for (const x of [-24, -8, 16, 31]) for (const z of [-19, -9.5, 1, 14]) {
+    if (x === 31 && z > 0) continue;
+    box(scene, 0.7, 7.5, 0.7, concrete, x, 3.75, z);
+    box(scene, 0.74, 1.2, 0.74, mat(0x111316, { roughness: 0.6 }), x, 0.6, z); // rubber base guard
+  }
+  // plate trees next to the barbell stations
+  const plateTree = (x, z) => {
+    const t = sub(scene, x, z); box(t, 0.6, 0.06, 0.6, M.dark(), 0, 0.03, 0); cyl(t, 0.04, 1.4, M.steel(), 0, 0.7, 0);
+    [[0.45, 0.4, 0.36], [0.85, 0.3, 0.3], [1.2, 0.24, 0.22]].forEach(([y, r]) => { for (const k of [-1, 1]) {
+      cyl(t, 0.03, 0.3, M.steel(), k * 0.15, y, 0, 'x'); cyl(t, r, 0.05, M.plate(), k * 0.28, y, 0, 'x', 28); cyl(t, r * 0.8, 0.05, M.accent(), k * 0.34, y, 0, 'x', 28); } });
+  };
+  for (const [x, z] of [[-32, -27.5], [-24, -27.5], [0.5, -27.5], [7.5, -27.5], [23, -27.5], [-24, 3]]) plateTree(x, z);
+  // stretch & foam-roll area at the front left
+  const st = sub(scene, -13, 21);
+  for (let i = 0; i < 4; i++) box(st, 0.9, 0.03, 1.9, mat(0x2a3f66, { roughness: 0.9 }), -2.4 + i * 1.6, 0.015, 0);
+  for (let i = 0; i < 5; i++) cyl(st, 0.08, 0.45, mat(i % 2 ? 0x1f9d55 : 0x2f6fd6), 3.6, 0.08, -0.8 + i * 0.4, 'x');
+  box(st, 1.2, 0.9, 0.4, M.steel(), 3.9, 0.45, 1.6);
+  // members' lounge + smoothie bar by reception
+  const lounge = sub(scene, 24, 22);
+  const sofa = (x, z, ry) => { const s2 = sub(lounge, x, z, ry); box(s2, 2.2, 0.42, 0.9, mat(0x2b2f36, { roughness: 0.9 }), 0, 0.21, 0); box(s2, 2.2, 0.5, 0.2, mat(0x2b2f36, { roughness: 0.9 }), 0, 0.6, -0.38); };
+  sofa(0, -1.4, 0); sofa(-2, 0.2, Math.PI / 2);
+  box(lounge, 1.2, 0.36, 0.7, woodMat, 0, 0.18, 0.2);
+  box(lounge, 5, 1.1, 0.7, mat(0x1d2127), 3, 0.55, 4); box(lounge, 5.2, 0.06, 0.9, mat(0xff5a2c, { emissive: 0xff5a2c, emissiveIntensity: 0.6 }), 3, 1.13, 4);
+  for (let i = 0; i < 4; i++) cyl(lounge, 0.18, 0.75, M.chrome(), 1.2 + i * 1.2, 0.38, 3.1);
+  plant(19, 26.5, 1.1); plant(29.6, 16.5, 1);
+  // TVs above the cardio row and the free-weight wall
+  for (const z of [-12, 0, 12]) { const tv = box(scene, 0.06, 1.1, 1.9, mat(0x0a0a0a), 41.2, 4.6, z); tv.add(new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.0), mat(0x10233f, { emissive: 0x2a63b8, emissiveIntensity: 0.9 }))); tv.children[0].rotation.y = -Math.PI / 2; tv.children[0].position.x = -0.04; }
+}
+
 function buildStations() {
   for (const st of state.stations) {
     const p = PLACES[st.id] || { x: 0, z: 0 };
@@ -911,7 +970,8 @@ function tick(now) {
     for (const [id, o] of stationObjects) if (swaps[id]) o.pad.material.opacity = pulse;
   }
   if (!intro) controls.update();
-  renderer.render(scene, camera);
+  grade.uniforms.time.value = (now % 10000) / 1000;
+  composer.render();
   labelRenderer.render(scene, camera);
   if (now - lastDeclutter > 200) { lastDeclutter = now; declutterLabels(); }
 }
@@ -936,6 +996,7 @@ function onResize() {
   const w = container.clientWidth, h = container.clientHeight;
   if (!w || !h) return;
   camera.aspect = w / h; camera.updateProjectionMatrix();
+  if (composer) { composer.setSize(w, h); composer.setPixelRatio(Math.min(devicePixelRatio, 2)); }
   renderer.setSize(w, h); labelRenderer.setSize(w, h);
 }
 
