@@ -102,7 +102,7 @@ function initScene() {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.82;
+  renderer.toneMappingExposure = 1.15;
   container.appendChild(renderer.domElement);
 
   labelRenderer = new CSS2DRenderer();
@@ -112,11 +112,11 @@ function initScene() {
   scene = new THREE.Scene();
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
-  scene.environmentIntensity = 0.45;
-  skyTex = gradientTexture(['#14213d', '#3b3f6b', '#c0657a', '#f4a259'], [0, 0.45, 0.78, 1]);
-  studioBg = gradientTexture(['#cfd6df', '#e9ecf0'], [0, 1]);
+  scene.environmentIntensity = 0.18;
+  skyTex = gradientTexture(['#03050b', '#0c1226', '#232a4a', '#4a3b52'], [0, 0.45, 0.8, 1]);
+  studioBg = gradientTexture(['#020304', '#0b0d11'], [0, 1]);
   scene.background = skyTex;
-  scene.fog = new THREE.Fog(0x2a2f4a, 70, 160);
+  scene.fog = new THREE.Fog(0x05070b, 70, 170);
 
   camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
   camera.position.set(0, 1.7, 48);
@@ -124,15 +124,15 @@ function initScene() {
   controls.target.set(0, 2, 30);
   Object.assign(controls, { enableDamping: true, dampingFactor: 0.08, minDistance: 5, maxDistance: 140, maxPolarAngle: Math.PI * 0.47, enabled: false });
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa1ab, 0.75));
-  const sun = new THREE.DirectionalLight(0xfff3e2, 2.2);
-  sun.position.set(22, 40, 18);
+  scene.add(new THREE.HemisphereLight(0xcfd8ff, 0x101216, 0.35));
+  const sun = new THREE.DirectionalLight(0xe6ecff, 0.9);
+  sun.position.set(6, 40, 10);
   sun.castShadow = true;
   sun.shadow.mapSize.set(4096, 4096);
   Object.assign(sun.shadow.camera, { left: -46, right: 46, top: 34, bottom: -34, near: 1, far: 120 });
   sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.02;
   scene.add(sun);
-  const fill = new THREE.DirectionalLight(0xdfe8ff, 0.6); fill.position.set(-25, 20, -10); scene.add(fill);
+  const fill = new THREE.DirectionalLight(0x9fb4ff, 0.15); fill.position.set(-25, 20, -10); scene.add(fill);
 
   buildRoom();
   buildOutside();
@@ -575,12 +575,12 @@ function buildRoom() {
   const W = ROOM.w, Dp = ROOM.d;
   woodMat = new THREE.MeshStandardMaterial({ map: woodTexture(), roughness: 0.6 });
   // floors
-  const concrete = new THREE.MeshStandardMaterial({ map: noiseTexture({ base: '#b9bec6', speck: ['#a9afb8', '#c9cdd3', '#9ea4ad'], n: 14000, repeat: 6 }), roughness: 0.55, metalness: 0.05 });
+  const concrete = new THREE.MeshStandardMaterial({ map: noiseTexture({ base: '#2e3238', speck: ['#3a3f46', '#24272c', '#454a52'], n: 14000, repeat: 6 }), roughness: 0.55, metalness: 0.05 });
   plane(W, Dp, concrete, 0, 0, 0);
-  const rubber = new THREE.MeshStandardMaterial({ map: noiseTexture({ base: '#2a2d32', speck: ['#3a3e45', '#1f2125', '#4a4e55'], tiles: 4, seam: '#1b1d20', n: 20000 }), roughness: 0.95 });
+  const rubber = new THREE.MeshStandardMaterial({ map: noiseTexture({ base: '#17191c', speck: ['#24272b', '#101214', '#2e3237'], tiles: 4, seam: '#0c0d0f', n: 20000 }), roughness: 0.95 });
   for (const [z, [x0, x1, z0, z1]] of Object.entries(ZONE_AREAS)) {
     const col = zoneOf(z);
-    const m = z === 'Cardio' || z === 'Core & Functional' ? mat(z === 'Cardio' ? 0xa9b0b9 : 0xc2b8a8, { roughness: 0.9, metalness: 0 }) : rubber.clone();
+    const m = z === 'Cardio' || z === 'Core & Functional' ? mat(z === 'Cardio' ? 0x24282e : 0x2b2822, { roughness: 0.9, metalness: 0 }) : rubber.clone();
     if (m.map) { m.map = m.map.clone(); m.map.needsUpdate = true; m.map.repeat.set((x1 - x0) / 2, (z1 - z0) / 2); }
     plane(x1 - x0 - 0.3, z1 - z0 - 0.3, m, (x0 + x1) / 2, 0.006, (z0 + z1) / 2);
     // painted zone border stripe
@@ -589,14 +589,14 @@ function buildRoom() {
   }
   plane(12, 9, mat(0x3f8a45, { roughness: 1 }), -34, 0.006, 22);
 
-  const wallMat = mat(0xf3f4f6, { roughness: 0.95, metalness: 0 });
+  const wallMat = mat(0x16191e, { roughness: 0.9, metalness: 0 });
   const wall = (w, h, d, x, y, z, m = wallMat) => { const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); mesh.position.set(x, y, z); mesh.receiveShadow = true; scene.add(mesh); return mesh; };
   wall(W, 7.5, 0.3, 0, 3.75, -Dp / 2);
   wall(0.3, 7.5, Dp, -W / 2, 3.75, 0);
   wall(0.3, 1.0, Dp, W / 2, 0.5, 0);
   wall(0.3, 1.2, Dp, W / 2, 6.9, 0);
   for (let z = -27; z <= 27; z += 6) wall(0.4, 5.3, 0.25, W / 2, 3.65, z + 3, M.dark());
-  const glassMat = mat(0xbfdcf2, { emissive: 0xd8ecfb, emissiveIntensity: 0.55, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.85 });
+  const glassMat = mat(0x0d1424, { emissive: 0x1a2a4a, emissiveIntensity: 0.6, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.85 });
   wall(0.08, 5.3, Dp, W / 2, 3.65, 0, glassMat);
   // dark base trim + zone accent paint on the back wall
   wall(W, 0.3, 0.32, 0, 0.15, -Dp / 2 + 0.02, M.dark());
@@ -616,23 +616,42 @@ function buildRoom() {
 
   // reception, lockers, plants, water
   const desk = sub(scene, 14, 24.5);
-  box(desk, 5, 1.1, 1.1, 0xf7f7f8, 0, 0.55, 0);
+  box(desk, 5, 1.1, 1.1, 0x1d2127, 0, 0.55, 0);
   box(desk, 5.2, 0.08, 1.3, M.accent(), 0, 1.12, 0);
   box(desk, 5.0, 0.06, 0.06, mat(0xffffff, { emissive: 0xffffff, emissiveIntensity: 1 }), 0, 0.05, 0.56);
   screen(desk, 0.6, 0.4, -1.2, 1.4, -0.2);
-  const rs = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.55), new THREE.MeshBasicMaterial({ map: textTexture('RECEPTION', { w: 1024, h: 160, color: '#111418', font: '800 100px Inter, system-ui, sans-serif' }), transparent: true }));
+  const rs = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.55), new THREE.MeshBasicMaterial({ map: textTexture('RECEPTION', { w: 1024, h: 160, color: '#ffffff', font: '800 100px Inter, system-ui, sans-serif' }), transparent: true }));
   rs.position.set(0, 0.62, 0.56); desk.add(rs);
   addPerson(desk, 0.6, -0.9, 0, 'wave');
   wall(7, 4, 0.2, 14, 2, 27.2, mat(0x2b3038, { roughness: 0.8 }));
   wallText('WELCOME', 14, 3.0, 27.08, 6, 1.0, '#ffffff', Math.PI);
   for (const [x, z, s] of [[-4, 27.8, 1], [4.5, 27.8, 1], [40.5, -28.3, 1.3], [-40.4, 28.3, 1.3], [40.5, 28.3, 1.2], [-40.4, -28.3, 1.2], [30.5, 14, 1]]) plant(x, z, s);
   const wf = sub(scene, -6.5, 28.6); box(wf, 0.6, 1.0, 0.4, M.chrome(), 0, 0.5, 0); box(wf, 0.5, 0.06, 0.35, 0xf2f3f5, 0, 1.03, 0);
-  for (let i = 0; i < 10; i++) box(scene, 0.75, 2.1, 0.55, i % 2 ? 0x8796a5 : 0x7a8a9b, -9.5 - i * 0.78, 1.05, 29.4);
-  wallText('LOCKERS', -13, 2.6, 29.1, 4, 0.6, '#111418', Math.PI);
+  for (let i = 0; i < 10; i++) box(scene, 0.75, 2.1, 0.55, i % 2 ? 0x2c333c : 0x262c34, -9.5 - i * 0.78, 1.05, 29.4);
+  wallText('LOCKERS', -13, 2.6, 29.1, 4, 0.6, '#ffffff', Math.PI);
 
   // hanging zone signs
   for (const [z, [x0, x1, z0, z1]] of Object.entries(ZONE_AREAS)) hangingSign(z, (x0 + x1) / 2, (z0 + z1) / 2 + (z === 'Cardio' ? 0 : 2), zoneOf(z).color);
   hangingSign('Turf', -34, 18, ZONES['Core & Functional'].color);
+
+  // Real-gym lighting: linear fixtures over every row, warm spots on each zone, LED wall strips.
+  const fixture = mat(0xffffff, { emissive: 0xfff1dc, emissiveIntensity: 3.2 });
+  for (const z of [-24, -14, -5, 6, 18]) for (let x = -36; x <= 34; x += 10) {
+    box(scene, 6, 0.08, 0.32, mat(0x0c0d10), x, 6.62, z); box(scene, 5.8, 0.04, 0.24, fixture, x, 6.56, z);
+  }
+  for (const [z, [x0, x1, z0, z1]] of Object.entries(ZONE_AREAS)) {
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, span = Math.max(x1 - x0, z1 - z0);
+    const xs = span > 20 ? [cx - span / 4, cx + span / 4] : [cx];
+    for (const x of xs) {
+      const spot = new THREE.SpotLight(0xffe2c0, 520, 30, 0.95, 0.75, 1.4);
+      spot.position.set(x, 7.2, cz + 2); spot.target.position.set(x, 0, cz); scene.add(spot, spot.target);
+    }
+    const led = mat(zoneOf(z).hex, { emissive: zoneOf(z).hex, emissiveIntensity: 2.2 });
+    plane(x1 - x0 - 0.6, 0.06, led, (x0 + x1) / 2, 0.02, z1 - 0.32);
+  }
+  wall(W, 0.08, 0.06, 0, 7.3, -Dp / 2 + 0.2, mat(0xff5a2c, { emissive: 0xff5a2c, emissiveIntensity: 2.5 }));
+  wall(0.06, 0.08, Dp, -W / 2 + 0.2, 7.3, 0, mat(0xff5a2c, { emissive: 0xff5a2c, emissiveIntensity: 2.5 }));
+  wall(W, 0.06, 0.06, 0, 0.32, -Dp / 2 + 0.2, mat(0xffffff, { emissive: 0xbfd4ff, emissiveIntensity: 1.2 }));
 
   // Ceiling + light panels: part of the walk-in, hidden afterwards like a dollhouse cut-away.
   ceiling = new THREE.Group(); scene.add(ceiling);
@@ -668,11 +687,11 @@ function buildRoom() {
 }
 function buildOutside() {
   const Dp = ROOM.d;
-  plane(140, 12, mat(0xa7abb2, { roughness: 1 }), 0, -0.01, Dp / 2 + 6);       // sidewalk
-  plane(140, 16, mat(0x2c2f35, { roughness: 1 }), 0, -0.02, Dp / 2 + 20);      // street
+  plane(140, 12, mat(0x26282c, { roughness: 1 }), 0, -0.01, Dp / 2 + 6);       // sidewalk
+  plane(140, 16, mat(0x111215, { roughness: 1 }), 0, -0.02, Dp / 2 + 20);      // street
   for (let x = -66; x <= 66; x += 6) plane(3, 0.25, mat(0xe8e2c8, { roughness: 1 }), x, -0.01, Dp / 2 + 20);
-  box(scene, 140, 0.15, 0.3, 0x8a8f96, 0, 0.07, Dp / 2 + 12);
-  plane(140, 40, mat(0x3c5a3a, { roughness: 1 }), 0, -0.03, Dp / 2 + 48);
+  box(scene, 140, 0.15, 0.3, 0x3a3d42, 0, 0.07, Dp / 2 + 12);
+  plane(140, 40, mat(0x0e1610, { roughness: 1 }), 0, -0.03, Dp / 2 + 48);
   for (const x of [-12, 12, -34, 34]) { // street lamps
     const l = sub(scene, x, Dp / 2 + 10.5);
     cyl(l, 0.08, 5.5, M.dark(), 0, 2.75, 0); box(l, 0.12, 0.12, 1.2, M.dark(), 0, 5.45, -0.55);
@@ -686,7 +705,7 @@ function buildOutside() {
     }
   }
   // neighbouring buildings
-  for (const [x, w, h, c] of [[-62, 36, 12, 0x5a5f6b], [62, 36, 10, 0x6b6560]]) box(scene, w, h, Dp, c, x, h / 2, 0);
+  for (const [x, w, h, c] of [[-62, 36, 12, 0x15181d], [62, 36, 10, 0x1a1816]]) box(scene, w, h, Dp, c, x, h / 2, 0);
 }
 
 function buildStations() {
@@ -854,7 +873,7 @@ function updateIntro(now) {
   controls.target.copy(intro.tgt.getPoint(u));
   camera.lookAt(controls.target);
   // fade sky to studio grey and drop the ceiling as we rise
-  if (s > k[n - 1].t + 0.3 && ceiling.visible) { ceiling.visible = false; facade.visible = false; scene.background = studioBg; scene.fog.color.set(0xe3e6ea); }
+  if (s > k[n - 1].t + 0.3 && ceiling.visible) { ceiling.visible = false; facade.visible = false; scene.background = studioBg; scene.fog.color.set(0x05070b); }
   let c = 0; while (c < CAPTIONS.length - 1 && s >= CAPTIONS[c + 1][0]) c++;
   if (c !== intro.cap) { intro.cap = c; const el = $('#caption'); el.textContent = CAPTIONS[c][1]; el.classList.remove('in'); void el.offsetWidth; el.classList.add('in'); }
   if (s >= k[n].t) finishIntro();
@@ -863,7 +882,7 @@ function finishIntro() {
   intro = null;
   if (facade) facade.visible = false;
   if (ceiling) ceiling.visible = false;
-  if (scene) { scene.background = studioBg; scene.fog.color.set(0xe3e6ea); scene.fog.near = 90; scene.fog.far = 200; }
+  if (scene) { scene.background = studioBg; scene.fog.color.set(0x05070b); scene.fog.near = 90; scene.fog.far = 200; }
   if (controls) controls.enabled = true;
   document.body.classList.remove('intro-on');
   $('#caption').hidden = true;

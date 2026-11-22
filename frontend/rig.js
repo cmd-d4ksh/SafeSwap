@@ -306,17 +306,17 @@ export function createCoach() {
   const controls = new OrbitControls(camera, canvas);
   Object.assign(controls, { enablePan: false, enableDamping: true, autoRotate: true, autoRotateSpeed: 1.2, minDistance: 2.5, maxDistance: 9, maxPolarAngle: Math.PI * 0.52 });
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xb8bec7, 1.6));
+  scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x0b0d10, 1.1));
   const key = new THREE.DirectionalLight(0xffffff, 2.4);
   key.position.set(2.5, 5, 3.5); key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
   Object.assign(key.shadow.camera, { left: -2.5, right: 2.5, top: 3, bottom: -1, near: 0.5, far: 15 });
   key.shadow.radius = 4;
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0xffd9c7, 0.9); rim.position.set(-3, 2.5, -3); scene.add(rim);
+  const rim = new THREE.DirectionalLight(0xff8a5c, 2.2); rim.position.set(-3, 2.5, -3); scene.add(rim);
 
-  const floor = new THREE.Mesh(new THREE.CircleGeometry(2.6, 64), new THREE.MeshStandardMaterial({ color: 0xeef0f3, roughness: 0.95 }));
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(2.6, 64), new THREE.MeshStandardMaterial({ color: 0x1b1f26, roughness: 0.6, metalness: 0.2 }));
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
-  const ring = new THREE.Mesh(new THREE.RingGeometry(2.55, 2.62, 64), new THREE.MeshBasicMaterial({ color: 0xe8461f }));
+  const ring = new THREE.Mesh(new THREE.RingGeometry(2.55, 2.62, 64), new THREE.MeshBasicMaterial({ color: 0xff5a2c }));
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.002; scene.add(ring);
 
   const rig = makeRig({ shirt: 0xe8461f, shorts: 0x1c2026, skin: 0xc98e66 });
