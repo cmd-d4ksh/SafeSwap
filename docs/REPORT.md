@@ -32,10 +32,10 @@ The system takes **an exercise the user can't do** and **an injury/limitation ta
 
 ### 1.2 Data (synthetic)
 
-* **Exercise catalog**: 271 rows, of which **269 are unique** (2 duplicates are injected on purpose to show validation). Built from ~100 hand-written base movements × equipment variants × tempo/paused/single-arm variants. Every entry has a name, primary and secondary muscles, equipment, a movement pattern (push/pull/hinge/squat/carry/rotation/isolation), descriptive tags (e.g. `axial-loading`, `overhead`, `deep-knee-flexion-loaded`, `wrist-weight-bearing`), and a 250–450 character instruction text used by KMP.
+* **Exercise catalog** (includes 7 cardio-machine exercises: treadmill, rower, elliptical, stair climber, air bike; walking/running is grouped under the `carry` pattern as locomotion): 278 rows, of which **276 are unique** (2 duplicates are injected on purpose to show validation). Built from ~100 hand-written base movements × equipment variants × tempo/paused/single-arm variants. Every entry has a name, primary and secondary muscles, equipment, a movement pattern (push/pull/hinge/squat/carry/rotation/isolation), descriptive tags (e.g. `axial-loading`, `overhead`, `deep-knee-flexion-loaded`, `wrist-weight-bearing`), and a 250–450 character instruction text used by KMP.
 * **Injury rule set**: 12 injuries, each with contraindications of kind `PATTERN`, `TAG` or `EQUIPMENT` and a human-readable reason. Examples: lumbar strain → avoid `axial-loading`, loaded spinal flexion and rotation; shoulder impingement → avoid `overhead`, `behind-neck`, `internal-rotation-loaded`; patellar tendinopathy → avoid `deep-knee-flexion-loaded` and `plyometric`. `finger-pulley-strain` deliberately has **zero** contraindicated catalog exercises (an edge case).
 * The rules are **synthetic and only loosely inspired by common physiotherapy guidance**. They are not clinically sourced or reviewed. This limitation is stated in the README and the UI.
-* Evaluating the rule engine over 269 × 12 pairs gives **310 contraindicated (exercise, injury) pairs**. These are the elements inserted into the Bloom filter.
+* Evaluating the rule engine over 276 × 12 pairs gives **312 contraindicated (exercise, injury) pairs**. These are the elements inserted into the Bloom filter.
 
 ---
 
@@ -113,14 +113,16 @@ POST /api/substitutions {exercise, injuryTag, maxResults, keyword, requireKeywor
 
 ### 2.3 User interface
 
-The primary UI is a **3D gym** (three.js) designed for first-time gym-goers, who often don't know exercise names. Instead of a form, the user:
+The primary UI is a **3D gym** (three.js) designed for first-time gym-goers, who often don't know exercise names. It opens at the front door, and a short scripted walk-in (doors slide open, the camera passes reception and looks at the free weights and the cardio row) recreates the feeling of entering a gym. The floor has four signed zones and 15 popular stations. Instead of a form, the user:
 
 1. taps the machine they were going to use;
 2. picks the exercise from a short list grouped by body area;
 3. taps where it hurts on a body figure, with plain-language symptom descriptions (the `area` and `hint` fields on each injury rule);
 4. gets up to 5 swaps. The stations holding them are highlighted in the room, and tapping a card flies the camera there.
 
-The interface is deliberately minimal: one panel, one decision per step. The algorithm details (trie resolution, Bloom negatives and positives, confirmed versus cleared, rule checks skipped) are behind a **"How we checked"** disclosure, so the method stays visible without cluttering a beginner's view. The original form UI (`classic.html`) keeps the full tables for expert users and examiners.
+The interface is deliberately minimal: one solid, high-contrast panel and one decision per step. **Back** and **Start over** are always visible, and the progress bar jumps to any earlier step with its answers kept.
+
+**Station placement** (`GymService`) is computed on the backend. Stations are tried in order, and an exercise is placed at the first station whose equipment matches (exact tag-trie lookup) and, when the station lists keywords, whose name contains one at a word boundary (prefix search on the word-suffix name trie, e.g. `row` matches "Machine Seated Cable Row"). The stations therefore partition the catalog; a test checks that every exercise is placed exactly once. The algorithm details (trie resolution, Bloom negatives and positives, confirmed versus cleared, rule checks skipped) are behind a **"How we checked"** disclosure, so the method stays visible without cluttering a beginner's view. The original form UI (`classic.html`) keeps the full tables for expert users and examiners.
 
 ### 2.4 Data validation
 
@@ -188,9 +190,9 @@ The matcher is **compiled once per keyword** and reused for every candidate's in
 
 ### 3.3 Bloom filter (`algo/BloomFilter.java`, `BitArray.java`, `HashFunctions.java`)
 
-* **Elements:** strings `"<exerciseId>|<injuryTag>"` for every contraindicated pair (n = 310 for the shipped data).
+* **Elements:** strings `"<exerciseId>|<injuryTag>"` for every contraindicated pair (n = 312 for the shipped data).
 * **Sizing** for target false-positive probability p = 0.01:
-  m = ⌈−n ln p / (ln 2)²⌉ = **2,972 bits (376 bytes)**, k = round((m/n) ln 2) = **7**.
+  m = ⌈−n ln p / (ln 2)²⌉ = **2,991 bits (376 bytes)**, k = round((m/n) ln 2) = **7**.
 * **Hash functions (own):** h₁ = FNV-1a 64-bit; h₂ = a multiply–rotate hash with a MurmurHash3-style `fmix64` finaliser and a different seed. Both have allocation-free versions for `CharSequence`, and unit tests check them against the byte-array versions and the published FNV test vectors.
 * **k indexes** by Kirsch–Mitzenmacher double hashing: gᵢ(x) = (h₁ + i·h₂) mod m, i = 0..k−1. h₂ is forced odd, so the step is never zero.
 
@@ -243,7 +245,7 @@ L = key/name length, P = prefix length, S = number of trie nodes in the matched 
 | Trie insert | O(L) (· log σ for the TreeMap child lookup, σ ≤ 40 symbols → effectively constant) | O(L) new nodes worst case |
 | Trie exact lookup | O(L) | — |
 | Trie prefix search (top-k) | **O(P + S)**, independent of N | O(k) output |
-| Trie build (all names + word suffixes) | O(Σ L²/avg-word-len) ≈ O(N·L) | O(total distinct prefixes) ≤ O(N·L²); measured 4,612 nodes for 269 names |
+| Trie build (all names + word suffixes) | O(Σ L²/avg-word-len) ≈ O(N·L) | O(total distinct prefixes) ≤ O(N·L²); measured 4,695 nodes for 276 names |
 | Linear-scan baseline prefix search | **O(K·P)** + sort of matches | O(K) |
 | KMP failure function | O(m) | O(m) |
 | KMP search | **O(n)**, ≤ 2n comparisons | O(1) extra (+ output) |
@@ -262,7 +264,7 @@ L = key/name length, P = prefix length, S = number of trie nodes in the matched 
 ### 6.1 Methodology
 
 * **Harness:** `com.exsub.bench.BenchmarkRunner` (plain `System.nanoTime`). Each experiment runs **2 warm-up rounds**, then reports the **median of 5 measured rounds**. A result sink prevents dead-code elimination.
-* **Data:** `ExerciseCatalogGenerator.scaled(N, seed = 42)` at **N = 100, 1,000, 10,000, 50,000**. Each synthetic entry is a realistic base exercise with 1–2 random modifiers and a unique suffix, so muscles, tags and instruction texts keep realistic distributions. Contraindicated pairs come from the real rule set (≈ 1.17 × N pairs).
+* **Data:** `ExerciseCatalogGenerator.scaled(N, seed = 42)` at **N = 100, 1,000, 10,000, 50,000**. Each synthetic entry is a realistic base exercise with 1–2 random modifiers and a unique suffix, so muscles, tags and instruction texts keep realistic distributions. Contraindicated pairs come from the real rule set (≈ 1.13 × N pairs).
 * **Workloads:**
   1. 500 autocomplete prefixes of length 1–6 taken from random word positions in real names, returning top-10 lexicographic matches (trie vs `LinearPrefixScan` over the same key set).
   2. Five realistic phrases scanned over all N instruction texts (KMP vs naive), plus an adversarial text `a…ab` with pattern `a²⁹b`.
@@ -272,64 +274,66 @@ L = key/name length, P = prefix length, S = number of trie nodes in the matched 
 
 ### 6.2 Results
 
+(Copied from `docs/benchmark_results.md`, generated by `BenchmarkRunner`.)
+
 **Prefix search (top-10 autocomplete)**
 
 | N exercises | indexed keys | trie nodes | Trie µs/query | Linear scan µs/query | speed-up |
 |---|---|---|---|---|---|
-| 100 | 615 | 8,043 | 4.70 | 9.18 | 2.0× |
-| 1,000 | 6,142 | 54,659 | 1.47 | 44.95 | 30.6× |
-| 10,000 | 61,389 | 372,396 | 1.39 | 470.60 | 338× |
-| 50,000 | 306,956 | 1,428,336 | 1.04 | 2,429.36 | 2,326× |
+| 100 | 607 | 7,852 | 5.01 | 19.42 | 3.9x |
+| 1,000 | 6,110 | 54,625 | 1.40 | 43.50 | 31.2x |
+| 10,000 | 61,333 | 374,831 | 1.46 | 455.79 | 312.0x |
+| 50,000 | 305,910 | 1,432,433 | 1.09 | 2556.19 | 2349.1x |
 
 **Phrase search, realistic text (per phrase, all N texts)**
 
-| N | chars scanned | KMP ms | Naive ms | KMP comparisons | Naive comparisons |
-|---|---|---|---|---|---|
-| 100 | 31,871 | 0.51 | 0.68 | 165,912 | 159,338 |
-| 1,000 | 309,522 | 0.80 | 1.06 | 1,611,983 | 1,544,868 |
-| 10,000 | 3,110,127 | 6.98 | 10.16 | 16,198,694 | 15,523,367 |
-| 50,000 | 15,559,406 | 38.88 | 55.37 | 81,038,667 | 77,659,867 |
+| N exercises | text chars scanned | KMP ms/phrase | Naive ms/phrase | KMP comparisons | Naive comparisons | comparison ratio |
+|---|---|---|---|---|---|---|
+| 100 | 29,614 | 0.465 | 0.866 | 154,246 | 147,091 | 0.95 |
+| 1,000 | 311,839 | 0.839 | 1.133 | 1,624,054 | 1,556,922 | 0.96 |
+| 10,000 | 3,108,648 | 7.733 | 11.216 | 16,190,376 | 15,518,083 | 0.96 |
+| 50,000 | 15,520,838 | 42.807 | 57.576 | 80,834,353 | 77,452,212 | 0.96 |
 
 **Phrase search, adversarial text (`a…ab`, pattern `a²⁹b`)**
 
-| text length | KMP ms | Naive ms | KMP comparisons | Naive comparisons | ratio |
+| text length | KMP ms | Naive ms | KMP comparisons | Naive comparisons | comparison ratio |
 |---|---|---|---|---|---|
-| 30,000 | 0.54 | 0.97 | 59,970 | 899,130 | 15.0 |
-| 300,000 | 1.07 | 12.02 | 599,970 | 8,999,130 | 15.0 |
-| 3,000,000 | 10.49 | 102.14 | 5,999,970 | 89,999,130 | 15.0 |
-| 15,000,000 | 52.79 | 550.97 | 29,999,970 | 449,999,130 | 15.0 |
+| 30,000 | 0.526 | 2.021 | 59,970 | 899,130 | 15.0 |
+| 300,000 | 1.036 | 7.642 | 599,970 | 8,999,130 | 15.0 |
+| 3,000,000 | 10.471 | 76.871 | 5,999,970 | 89,999,130 | 15.0 |
+| 15,000,000 | 53.226 | 384.541 | 29,999,970 | 449,999,130 | 15.0 |
 
 **Contraindication membership check (all N × 12 pairs)**
 
-| N | pairs n | m (bits) | k | Bloom ns | HashSet ns | Rule engine ns | Bloom mem | HashSet mem (est.) | mem ratio | measured FPP |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 100 | 128 | 1,227 | 7 | 199 | 56 | 189 | 160 B | 13.8 KB | 88× | 0.0177 |
-| 1,000 | 1,204 | 11,541 | 7 | 126 | 60 | 103 | 1.4 KB | 128 KB | 91× | 0.0128 |
-| 10,000 | 11,690 | 112,050 | 7 | 84 | 16 | 48 | 13.7 KB | 1.20 MB | 90× | 0.0100 |
-| 50,000 | 58,278 | 558,599 | 7 | 86 | 15 | 57 | 68.2 KB | 6.18 MB | 93× | 0.0102 |
+| N exercises | contraindicated pairs n | Bloom m (bits) | k | Bloom ns/check | HashSet ns/check | Rule-engine ns/check | Bloom memory | HashSet memory (est.) | memory ratio | target FPP | measured FPP |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 100 | 105 | 1,007 | 7 | 440.1 | 56.9 | 185.5 | 128 B | 11.5 KB | 91.9x | 0.010 | 0.0064 |
+| 1,000 | 1,158 | 11,100 | 7 | 140.8 | 61.0 | 99.0 | 1.4 KB | 123.5 KB | 90.9x | 0.010 | 0.0093 |
+| 10,000 | 11,356 | 108,848 | 7 | 86.3 | 14.2 | 40.2 | 13.3 KB | 1.17 MB | 90.0x | 0.010 | 0.0096 |
+| 50,000 | 56,590 | 542,419 | 7 | 82.2 | 14.4 | 42.6 | 66.2 KB | 6.01 MB | 92.9x | 0.010 | 0.0098 |
 
 **End-to-end substitution request**
 
-| N | avg candidates | Bloom pipeline µs | Rule-only µs | rule evaluations avoided |
+| N exercises | avg candidates / request | Bloom pipeline µs/request | Rule-only µs/request | rule evaluations avoided |
 |---|---|---|---|---|
-| 100 | 12 | 31.8 | 30.1 | 83 % |
-| 1,000 | 178 | 154 | 136 | 81 % |
-| 10,000 | 1,202 | 1,286 | 841 | 85 % |
-| 50,000 | 6,580 | 6,804 | 5,824 | 87 % |
+| 100 | 13 | 41.4 | 17.5 | 85.8% |
+| 1,000 | 164 | 143.6 | 127.0 | 83.6% |
+| 10,000 | 1,408 | 1385.0 | 956.0 | 90.2% |
+| 50,000 | 7,368 | 6364.6 | 6224.9 | 86.9% |
 
-On the shipped 269-exercise catalog: n = 310 pairs, m = 2,972 bits (376 B), k = 7, fill 52.5 %, theoretical FPP 1.00 %, **measured FPP 1.17 %** over all 2,918 true-negative pairs.
+On the shipped 276-exercise catalog: n = 312 pairs, m = 2,991 bits (376 B), k = 7, fill 52.3 %, theoretical FPP 1.00 %, **measured FPP 0.63 %** over all 3,000 true-negative pairs.
 
 ### 6.3 Analysis: when each approach wins or loses
 
-**Trie vs linear scan.** The linear scan does O(K·P) work per keystroke, so its time grows linearly with N (9 µs → 2.4 ms, ×265 for ×500 data). Trie query time stays **flat at about 1–5 µs** because it depends only on the prefix length and the size of the output. At N = 100 the gap is only 2× and both are far below anything a human could notice, so a naive scan is perfectly adequate for tiny catalogs. The trie pays for its speed with memory and build time: about 1.4 M nodes for 50k names, because of word-suffix indexing (each node a `TreeMap`). A compressed (radix) trie or array-based children would cut this, and is listed under future work. The trie query time even falls slightly as N grows, which is a JIT and cache-warmth effect: with bigger catalogs, 10 matches are found in a smaller part of a denser subtree.
+**Trie vs linear scan.** The linear scan does O(K·P) work per keystroke, so its time grows linearly with N (19 µs → 2.6 ms, ×130 for ×500 data). Trie query time stays **flat at about 1–5 µs** because it depends only on the prefix length and the size of the output. At N = 100 the gap is only about 4× and both are far below anything a human could notice, so a naive scan is perfectly adequate for tiny catalogs. The trie pays for its speed with memory and build time: about 1.4 M nodes for 50k names, because of word-suffix indexing (each node a `TreeMap`). A compressed (radix) trie or array-based children would cut this, and is listed under future work. The trie query time even falls slightly as N grows, which is a JIT and cache-warmth effect: with bigger catalogs, 10 matches are found in a smaller part of a denser subtree.
 
-**KMP vs naive.** On realistic English instruction text, a mismatch almost always happens at the first or second character, so the naive matcher is effectively linear. Both do about the same number of comparisons (ratio 0.96). KMP is still about 1.3–1.4× faster in wall time, which we attribute to its tight single-pass loop (no re-reading and lower-casing of text windows). On **repetitive/adversarial** input naive matching degrades to O(n·m). There KMP does **15× fewer comparisons and runs about 10× faster**, with time growing exactly linearly. KMP's advantage is a **worst-case guarantee**, and that matters when the input (user keywords, future free-text notes) is not under our control.
+**KMP vs naive.** On realistic English instruction text, a mismatch almost always happens at the first or second character, so the naive matcher is effectively linear. Both do about the same number of comparisons (ratio 0.96). KMP is still about 1.3–1.9× faster in wall time, which we attribute to its tight single-pass loop (no re-reading and lower-casing of text windows). On **repetitive/adversarial** input naive matching degrades to O(n·m). There KMP does **15× fewer comparisons and runs about 4–7× faster**, with time growing exactly linearly. KMP's advantage is a **worst-case guarantee**, and that matters when the input (user keywords, future free-text notes) is not under our control.
 
 **Bloom filter vs HashSet vs direct rule evaluation.**
-* **Memory: the Bloom filter wins decisively.** It uses 9.6 bits per element regardless of key length, which is about **90× smaller** than a `HashSet<String>` at every scale (68 KB vs 6.2 MB at 50k). That ratio holds as N grows, and it grows further with longer keys.
-* **Time per check: the HashSet wins.** Java `String` caches its hashCode, so a repeated HashSet lookup costs one cached-hash bucket probe and one `equals` (about 15 ns). The Bloom filter must compute two 64-bit hashes over the roughly 25-character key and make 7 random bit probes (about 85 ns). Our in-memory rule engine is also cheap (about 50 ns, a few list checks).
-* **FPP:** the measured FPP converges on the theoretical 1 % as n grows (1.77 % → 1.00 %). Small n is noisier because m is tiny and hashing granularity matters more.
-* **End-to-end:** the filter lets the pipeline **skip 81–87 % of authoritative rule evaluations**. Because those evaluations are themselves in-memory and cheap here, wall time is about the same, and slightly worse at large N (where the Bloom check adds ≈ 85 ns per candidate, while the confirmation path also pays string building for explanations).
+* **Memory: the Bloom filter wins decisively.** It uses 9.6 bits per element regardless of key length, which is about **90× smaller** than a `HashSet<String>` at every scale (66 KB vs 6.0 MB at 50k). That ratio holds as N grows, and it grows further with longer keys.
+* **Time per check: the HashSet wins.** Java `String` caches its hashCode, so a repeated HashSet lookup costs one cached-hash bucket probe and one `equals` (about 15 ns). The Bloom filter must compute two 64-bit hashes over the roughly 25-character key and make 7 random bit probes (about 85 ns). Our in-memory rule engine is also cheap (about 40 ns, a few list checks).
+* **FPP:** the measured FPP converges on the theoretical 1 % as n grows (0.64 % → 0.98 %). Small n is noisier because m is tiny and there are few negatives to sample. The 440 ns Bloom time at N = 100 is JIT warm-up noise on a very short run.
+* **End-to-end:** the filter lets the pipeline **skip 84–90 % of authoritative rule evaluations**. Because those evaluations are themselves in-memory and cheap here, wall time is about the same, and slightly worse at large N (where the Bloom check adds ≈ 85 ns per candidate, while the confirmation path also pays string building for explanations).
 
 **When the Bloom filter wins.** It wins when the authoritative check is **expensive** (a database, a remote clinical-rules service, or a disk-resident rule table), or when the exact set is **too large to keep in memory** (millions of exercise × injury × variant pairs on a mobile client). In those settings, skipping 80–90 % of authoritative lookups at a cost of about 85 ns each is a large gain, and the 90× memory saving lets the "possibly unsafe" index fit in cache or ship to a device.
 
