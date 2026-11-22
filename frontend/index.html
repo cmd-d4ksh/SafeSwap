@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Injury-Safe Exercise Substitution</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Injury-Safe Exercise Substitution</h1>
+  <p class="sub">Trie + KMP search · Bloom-filter pre-check with exact rule confirmation · Java/Spring Boot backend</p>
+  <p id="health" class="muted">Connecting to API…</p>
+</header>
+
+<main>
+  <section class="card">
+    <h2>1. Find a substitute</h2>
+    <form id="subForm" autocomplete="off">
+      <label for="exercise">Exercise you can't do</label>
+      <div class="ac-wrap">
+        <input id="exercise" placeholder="Start typing, e.g. squat, bench, press…" required>
+        <ul id="acList" class="ac-list" hidden></ul>
+      </div>
+      <p id="acMeta" class="muted small"></p>
+
+      <label for="injury">Injury / limitation</label>
+      <select id="injury" required><option value="">Loading…</option></select>
+      <p id="injuryInfo" class="muted small"></p>
+
+      <fieldset>
+        <legend>Parameters</legend>
+        <div class="row">
+          <label>Max results <input id="maxResults" type="number" min="1" max="50" value="10"></label>
+          <label>Keyword / movement cue (KMP) <input id="keyword" placeholder="e.g. neutral spine"></label>
+        </div>
+        <div class="row">
+          <label class="check"><input id="requireKeyword" type="checkbox"> Keyword required (filter, not just boost)</label>
+          <label class="check"><input id="sameEquipmentOnly" type="checkbox"> Same equipment only</label>
+        </div>
+      </fieldset>
+      <button type="submit" id="go">Find safe substitutes</button>
+    </form>
+    <div id="error" class="error" hidden></div>
+  </section>
+
+  <section id="resultSection" class="card" hidden>
+    <h2>2. Results</h2>
+    <div id="statusBanner"></div>
+    <div id="targetInfo"></div>
+    <details open>
+      <summary><strong>Method used</strong> (pipeline)</summary>
+      <div id="pipeline" class="pipeline"></div>
+    </details>
+    <table id="resultsTable">
+      <thead><tr><th>#</th><th>Exercise</th><th>Score</th><th>Why accepted</th><th>Safety check</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <details>
+      <summary id="rejectedSummary">Rejected candidates</summary>
+      <table id="rejectedTable">
+        <thead><tr><th>Exercise</th><th>Stage</th><th>Method</th><th>Reason(s)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>3. Explore the catalog</h2>
+    <div class="row">
+      <form id="tagForm" class="grow">
+        <label for="tagPrefix">Tag / muscle / equipment prefix (Trie)</label>
+        <input id="tagPrefix" placeholder="e.g. over, ham, kettle">
+      </form>
+      <form id="textForm" class="grow">
+        <label for="phrase">Phrase in instructions (KMP)</label>
+        <input id="phrase" placeholder="e.g. deep knee flexion">
+      </form>
+    </div>
+    <div id="exploreOut"></div>
+  </section>
+
+  <section class="card">
+    <h2>Catalog &amp; Bloom filter stats</h2>
+    <div id="stats" class="muted">Loading…</div>
+  </section>
+</main>
+
+<footer class="muted small">
+  Synthetic data for coursework. Contraindication rules are loosely based on common physiotherapy guidance and are <strong>not medical advice</strong>.
+</footer>
+<script src="app.js"></script>
+</body>
+</html>
