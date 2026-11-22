@@ -191,7 +191,7 @@ echo "[]" > /tmp/empty.json && EXSUB_DATA_EXERCISESPATH=file:/tmp/empty.json mvn
 | GET | `/api/gym/stations` | The 15 gym stations with zone and exercise counts |
 | GET | `/api/gym/stations/{id}/exercises` | Exercises at one station. Placement uses **Trie** lookups: exact tag-trie matches on equipment, plus name-trie word-prefix matches on station keywords (e.g. `leg press`) |
 | GET | `/api/gym/locate?ids=EX0001,EX0187` | Which station each exercise is done at (used to highlight swaps in the 3D gym) |
-| POST | `/api/catalog?name=my.json` | Upload your own exercise dataset (JSON array); validated (empty / duplicates / invalid rows) and indexed on the server. Also available in the classic view (**Upload your own data**) |
+| POST | `/api/catalog?name=my.json` | Upload your own exercise dataset (JSON array); validated (empty / duplicates / invalid rows) and indexed on the server. In the website: footer → **Upload your own data** (a ready-made test file is `frontend/sample_upload.json`: 15 good rows, 1 duplicate, 1 invalid) |
 | POST | `/api/catalog/reset` | Restore the shipped sample data |
 | POST | `/api/plans` | `{"injuryTag":"patellar-tendinopathy","daysPerWeek":3}` → safe beginner weekly plan (2–4 days); every exercise passes Bloom + rule confirmation; includes doses, stations and an avoid list |
 | GET | `/api/exercises/{id}/guide` | Form guide: demo motion (chosen by KMP keyword rules), steps, do/avoid cues, breathing, tempo, beginner dose |

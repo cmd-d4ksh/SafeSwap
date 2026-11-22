@@ -1008,7 +1008,7 @@ function setStep(n, flow = state.flow) {
   const F = FLOWS[state.flow];
   state.step = n;
   state.maxStep = Math.max(state.maxStep, n);
-  state.guide = null;
+  state.guide = null; state.upload = false;
   $('#stepText').innerHTML = `<span>Step ${n + 1} of ${F.steps.length}</span>${F.titles[n]}`;
   $('#navBack').disabled = n === 0 && !(state.flow === 'swap' && state.plan);
   $('#navRestart').disabled = state.flow === 'plan' && n === 0 && !state.injury;
@@ -1040,6 +1040,7 @@ function goTo(s) {
   else if (s === 3 && state.result) renderResults(false);
 }
 function goBack() {
+  if (state.upload) { state.upload = false; return goTo(state.step); }
   if (state.guide) { const back = state.guide.back; state.guide = null; return back === 'results' ? renderResults(false) : back === 'plan' ? renderPlan(false) : goTo(state.step); }
   if (state.flow === 'swap' && state.step === 0 && state.plan) { state.flow = 'plan'; return renderPlan(false); }
   if (state.step > 0) goTo(state.flow === 'swap' && state.step === 2 && !state.station ? 0 : state.step - 1);
@@ -1228,6 +1229,76 @@ function chooseArea(area, keepTag) {
   }));
   $('#find').disabled = !state.injury;
 }
+
+// ---------- Upload your own dataset (validated + indexed by the Java backend: POST /api/catalog) ----------
+async function renderUpload(msg) {
+  state.upload = true; state.guide = null;
+  $('#navBack').disabled = false;
+  $('#stepText').innerHTML = '<span>Data</span>Use your own exercises';
+  let s = null;
+  try { s = await api('/api/catalog/stats'); } catch { /* shown below */ }
+  body.innerHTML = `
+    <button class="link back-link" id="upBack">‹ Back</button>
+    <h1>Use your own exercise list</h1>
+    <div id="upOut">${msg || ''}</div>
+    <p class="lead">You can replace SafeSwap's built-in exercise list (285 exercises) with your own, for example your gym's or your coach's list. The server checks every row, rebuilds its search indexes and safety filter, and the whole site then uses your list.</p>
+    <div class="breath"><b>Currently using</b>${s ? `${esc(s.source)} · ${s.exercises} exercises` : 'unknown (server not reachable)'}</div>
+    <h2>What to upload</h2>
+    <p class="lead" style="margin-bottom:8px">A <b>.json</b> file containing a list of exercises. Each exercise needs:</p>
+    <ul class="fmt">
+      <li><code>id</code> a unique code, e.g. <code>"MY001"</code></li>
+      <li><code>name</code> e.g. <code>"Goblet Squat"</code></li>
+      <li><code>primaryMuscles</code> at least one, e.g. <code>["quads", "glutes"]</code></li>
+      <li><code>secondaryMuscles</code> may be empty <code>[]</code></li>
+      <li><code>equipment</code> e.g. <code>["dumbbell"]</code></li>
+      <li><code>movementPattern</code> one of push, pull, hinge, squat, carry, rotation, isolation</li>
+      <li><code>tags</code> safety tags, e.g. <code>["deep-knee-flexion-loaded"]</code> (these decide which injuries it is unsafe for)</li>
+      <li><code>instructions</code> how to do it (used by the text search)</li>
+    </ul>
+    <a class="btn-secondary dl" href="sample_upload.json" download>⬇ Download a sample file (17 rows)</a>
+    <p class="fine" style="margin-top:6px">The sample has 15 good rows, 1 duplicate and 1 broken row, so you can see the validation working.</p>
+    <label class="drop" id="drop">
+      <input type="file" id="upFile" accept=".json,application/json" hidden>
+      <b id="upName">Choose a .json file</b><span>or drag it here</span>
+    </label>
+    <button class="btn-primary" id="upGo" disabled>Upload and use this list</button>
+    <button class="btn-secondary" id="upReset">Restore the built-in list</button>`;
+  let file = null;
+  const pick = (f) => { file = f; $('#upName').textContent = f ? f.name : 'Choose a .json file'; $('#upGo').disabled = !f; };
+  $('#upFile').addEventListener('change', (e) => pick(e.target.files[0]));
+  const drop = $('#drop');
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); pick(e.dataTransfer.files[0]); });
+  $('#upBack').addEventListener('click', goBack);
+  $('#upGo').addEventListener('click', async () => {
+    let rows;
+    try { rows = JSON.parse(await file.text()); } catch (e) { $('#upOut').innerHTML = `<div class="error">That file isn't valid JSON: ${esc(e.message)}</div>`; return; }
+    $('#upGo').disabled = true; $('#upGo').textContent = 'Checking and indexing…';
+    try {
+      const r = await api(`/api/catalog?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rows) });
+      await afterCatalogChange();
+      const rej = [...r.loadReport.duplicates, ...r.loadReport.invalid];
+      renderUpload(`<div class="verdict ok"><strong>Now using ${esc(file.name)}</strong>${r.exercises} of ${r.loadReport.rowsRead} rows accepted. Search, swaps, plans and the gym all use your list now.</div>
+        ${rej.length ? `<div class="avoid-box"><h3>${rej.length} row${rej.length > 1 ? 's' : ''} rejected</h3><ul>${rej.slice(0, 12).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+        <button class="btn-primary" id="upStart" style="margin-top:12px">Build a plan with this list</button>`);
+    } catch (e) {
+      $('#upGo').disabled = false; $('#upGo').textContent = 'Upload and use this list';
+      $('#upOut').innerHTML = `<div class="error">${esc(e.message)}${e.hints?.length ? `<ul>${e.hints.slice(0, 8).map((h) => `<li>${esc(h)}</li>`).join('')}</ul>` : ''}</div>`;
+    }
+  });
+  $('#upReset').addEventListener('click', async () => {
+    try { await api('/api/catalog/reset', { method: 'POST' }); await afterCatalogChange(); renderUpload('<div class="verdict ok"><strong>Built-in list restored</strong>The site is back to the sample exercises.</div>'); }
+    catch (e) { $('#upOut').innerHTML = `<div class="error">${esc(e.message)}</div>`; }
+  });
+  $('#upStart')?.addEventListener('click', () => { state.upload = false; restart(); });
+}
+async function afterCatalogChange() {
+  // the server rebuilt everything; refresh station counts and drop answers computed on the old list
+  state.stations = await api('/api/gym/stations');
+  Object.assign(state, { plan: null, result: null, exercise: null, station: null, where: {} });
+}
+$('#uploadLink').addEventListener('click', (e) => { e.preventDefault(); if (!$('#panel').hidden) renderUpload(); });
 
 // ---------- Plan flow: pain check -> days -> safe weekly plan (POST /api/plans) ----------
 function renderPain() {

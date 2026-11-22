@@ -1,0 +1,331 @@
+[
+  {
+    "id": "EX0001",
+    "name": "Barbell Bench Press",
+    "primaryMuscles": [
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "front-delts"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "movementPattern": "push",
+    "tags": [
+      "horizontal-press"
+    ],
+    "instructions": "Set up with the barbell. Lower the weight to mid-chest and press up in a slight arc. Press the load away from your body until the arms are extended without slamming the lockout. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "EX0020",
+    "name": "Machine Chest Press",
+    "primaryMuscles": [
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "front-delts"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "movementPattern": "push",
+    "tags": [
+      "supported",
+      "shoulder-friendly"
+    ],
+    "instructions": "Set up with the machine. Keep your back against the pad and press the handles forward. Press the load away from your body until the arms are extended without slamming the lockout. The pad or bench supports your torso, reducing spinal load. The arm path keeps the shoulder in a comfortable range. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "EX0023",
+    "name": "Push-Up",
+    "primaryMuscles": [
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "front-delts",
+      "core"
+    ],
+    "equipment": [
+      "bodyweight"
+    ],
+    "movementPattern": "push",
+    "tags": [
+      "wrist-weight-bearing",
+      "wrist-extension-load"
+    ],
+    "instructions": "Set up with the bodyweight. Stack your wrists under your shoulders and lower your chest to the floor. Press the load away from your body until the arms are extended without slamming the lockout. Spread the fingers and keep weight even through the palms. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "EX0064",
+    "name": "Cable Triceps Pushdown",
+    "primaryMuscles": [
+      "triceps"
+    ],
+    "secondaryMuscles": [],
+    "equipment": [
+      "cable"
+    ],
+    "movementPattern": "isolation",
+    "tags": [
+      "elbow-extension"
+    ],
+    "instructions": "Set up with the cable. Pin the elbows to your sides and extend the arms fully. Move only at the target joint and avoid swinging or using momentum. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "EX0077",
+    "name": "Cable Lat Pulldown",
+    "primaryMuscles": [
+      "lats"
+    ],
+    "secondaryMuscles": [
+      "biceps",
+      "rear-delts"
+    ],
+    "equipment": [
+      "cable"
+    ],
+    "movementPattern": "pull",
+    "tags": [
+      "overhead"
+    ],
+    "instructions": "Set up with the cable. Pull the bar to the upper chest while leaning back slightly. Pull by driving the elbows back and squeezing the shoulder blades together. Reach fully overhead without arching the lower back. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "EX0087",
+    "name": "Machine Seated Cable Row",
+    "primaryMuscles": [
+      "lats",
+      "rhomboids"
+    ],
+    "secondaryMuscles": [
+      "biceps"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "movementPattern": "pull",
+    "tags": [
+      "supported"
+    ],
+    "instructions": "Set up with the machine. Sit tall and row the handle to the stomach. Pull by driving the elbows back and squeezing the shoulder blades together. The pad or bench supports your torso, reducing spinal load. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "EX0108",
+    "name": "Dumbbell Biceps Curl",
+    "primaryMuscles": [
+      "biceps"
+    ],
+    "secondaryMuscles": [
+      "forearms"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "movementPattern": "isolation",
+    "tags": [
+      "elbow-flexion"
+    ],
+    "instructions": "Set up with the dumbbell. Curl the weight up without swinging the torso. Move only at the target joint and avoid swinging or using momentum. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "EX0131",
+    "name": "Barbell Deadlift",
+    "primaryMuscles": [
+      "glutes",
+      "hamstrings",
+      "lower-back"
+    ],
+    "secondaryMuscles": [
+      "traps",
+      "forearms",
+      "quads"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "movementPattern": "hinge",
+    "tags": [
+      "axial-loading",
+      "grip-intensive",
+      "spinal-load-heavy"
+    ],
+    "instructions": "Set up with the barbell. Push the floor away and stand tall with the bar close to the legs. Hinge at the hips with a neutral spine, pushing the hips back until you feel tension in the hamstrings. The load is carried through the spine, so brace hard before each rep. Maintain a strong grip on the handles throughout. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "EX0156",
+    "name": "Glute Bridge",
+    "primaryMuscles": [
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "hamstrings",
+      "core"
+    ],
+    "equipment": [
+      "bodyweight"
+    ],
+    "movementPattern": "hinge",
+    "tags": [
+      "floor-based",
+      "low-spinal-load"
+    ],
+    "instructions": "Set up with the bodyweight. Lie on your back and drive the hips up, squeezing the glutes. Hinge at the hips with a neutral spine, pushing the hips back until you feel tension in the hamstrings. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "EX0173",
+    "name": "Barbell Back Squat",
+    "primaryMuscles": [
+      "quads",
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "hamstrings",
+      "lower-back",
+      "core"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "movementPattern": "squat",
+    "tags": [
+      "axial-loading",
+      "deep-knee-flexion-loaded",
+      "deep-hip-flexion-loaded"
+    ],
+    "instructions": "Set up with the barbell. Sit down between the hips into deep knee flexion and stand back up. Keep the knees tracking over the toes and drive up through the mid-foot. The load is carried through the spine, so brace hard before each rep. Descend into deep knee flexion under control. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "EX0187",
+    "name": "Air Squat",
+    "primaryMuscles": [
+      "quads",
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "hamstrings"
+    ],
+    "equipment": [
+      "bodyweight"
+    ],
+    "movementPattern": "squat",
+    "tags": [
+      "low-load"
+    ],
+    "instructions": "Set up with the bodyweight. Squat to a comfortable depth with arms forward for balance. Keep the knees tracking over the toes and drive up through the mid-foot. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "EX0188",
+    "name": "Machine Leg Press",
+    "primaryMuscles": [
+      "quads",
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "hamstrings"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "movementPattern": "squat",
+    "tags": [
+      "supported",
+      "deep-knee-flexion-loaded",
+      "deep-hip-flexion-loaded"
+    ],
+    "instructions": "Set up with the machine. Lower the platform until the knees reach ninety degrees or deeper. Keep the knees tracking over the toes and drive up through the mid-foot. Descend into deep knee flexion under control. The pad or bench supports your torso, reducing spinal load. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "EX0202",
+    "name": "Wall Sit",
+    "primaryMuscles": [
+      "quads"
+    ],
+    "secondaryMuscles": [
+      "glutes"
+    ],
+    "equipment": [
+      "bodyweight"
+    ],
+    "movementPattern": "squat",
+    "tags": [
+      "isometric",
+      "knee-friendly"
+    ],
+    "instructions": "Set up with the bodyweight. Slide down the wall to a comfortable knee angle and hold. Keep the knees tracking over the toes and drive up through the mid-foot. Hold the position for time while breathing steadily. This keeps stress on the knee joint low. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "EX0252",
+    "name": "Plank",
+    "primaryMuscles": [
+      "core"
+    ],
+    "secondaryMuscles": [
+      "front-delts"
+    ],
+    "equipment": [
+      "bodyweight"
+    ],
+    "movementPattern": "isolation",
+    "tags": [
+      "isometric",
+      "spine-neutral"
+    ],
+    "instructions": "Set up with the bodyweight. Hold a straight line from head to heels on the forearms. Move only at the target joint and avoid swinging or using momentum. Hold the position for time while breathing steadily. Keep a neutral spine for the entire set. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "EX0270",
+    "name": "Treadmill Walk",
+    "primaryMuscles": [
+      "calves",
+      "quads"
+    ],
+    "secondaryMuscles": [
+      "glutes",
+      "hamstrings"
+    ],
+    "equipment": [
+      "treadmill"
+    ],
+    "movementPattern": "carry",
+    "tags": [
+      "low-impact",
+      "knee-friendly"
+    ],
+    "instructions": "Set up with the treadmill. Walk at a brisk pace with a tall posture and relaxed arms. Walk with short controlled steps, keeping the ribs stacked over the pelvis. This keeps stress on the knee joint low. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "MY999",
+    "name": "BARBELL BENCH PRESS",
+    "primaryMuscles": [
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "front-delts"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "movementPattern": "push",
+    "tags": [
+      "horizontal-press"
+    ],
+    "instructions": "Set up with the barbell. Lower the weight to mid-chest and press up in a slight arc. Press the load away from your body until the arms are extended without slamming the lockout. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+  },
+  {
+    "id": "MY998",
+    "name": "Mystery Move",
+    "primaryMuscles": [],
+    "secondaryMuscles": [],
+    "equipment": [
+      "cable"
+    ],
+    "movementPattern": "wiggle",
+    "tags": [],
+    "instructions": "An invalid row: no primary muscle and an unknown movement pattern."
+  }
+]
