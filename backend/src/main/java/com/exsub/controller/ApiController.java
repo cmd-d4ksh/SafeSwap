@@ -6,6 +6,7 @@ import com.exsub.engine.SubstitutionResult;
 import com.exsub.error.ApiException;
 import com.exsub.model.Exercise;
 import com.exsub.service.CatalogService;
+import com.exsub.service.FormGuideService;
 import com.exsub.service.GymService;
 import com.exsub.service.SearchService;
 import com.exsub.service.SubstitutionService;
@@ -30,13 +31,16 @@ public class ApiController {
     private final SearchService searchService;
     private final SubstitutionService substitutionService;
     private final GymService gymService;
+    private final FormGuideService formGuideService;
 
     public ApiController(CatalogService catalogService, SearchService searchService,
-                         SubstitutionService substitutionService, GymService gymService) {
+                         SubstitutionService substitutionService, GymService gymService,
+                         FormGuideService formGuideService) {
         this.catalogService = catalogService;
         this.searchService = searchService;
         this.substitutionService = substitutionService;
         this.gymService = gymService;
+        this.formGuideService = formGuideService;
     }
 
     @GetMapping("/gym/stations")
@@ -85,6 +89,12 @@ public class ApiController {
     public SearchService.TextSearchResponse textSearch(@RequestParam(required = false) String q,
                                                        @RequestParam(defaultValue = "20") int limit) {
         return searchService.textSearch(q, limit);
+    }
+
+    /** Step-by-step form guide plus the demo motion the 3D coach should play. */
+    @GetMapping("/exercises/{id}/guide")
+    public FormGuideService.Guide guide(@PathVariable String id) {
+        return formGuideService.guide(id);
     }
 
     @GetMapping("/exercises/{id}")

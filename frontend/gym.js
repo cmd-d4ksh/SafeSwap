@@ -1,9 +1,12 @@
 // SafeSwap Gym: walk into a 3D gym, pick the machine you were going to use, say what hurts,
-// and get a safe swap plus where to find it. This file only draws the scene and renders API
-// responses. All search, safety checking, ranking and station placement happen in the Java backend.
+// get a safe swap, see where it is, and watch a 3D coach demonstrate the form. This file only
+// draws the scene and renders API responses. All search, safety checking, ranking, station
+// placement and demo-motion selection happen in the Java backend.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { makeRig, animate, createCoach } from './rig.js';
 
 const API = new URLSearchParams(location.search).get('api') || 'http://localhost:8085';
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -12,44 +15,42 @@ const body = $('#panelBody');
 
 async function api(path, options) {
   let res;
-  try {
-    res = await fetch(API + path, options);
-  } catch {
+  try { res = await fetch(API + path, options); } catch {
     throw new Error(`Can't reach the server at ${API}. Start it with "mvn spring-boot:run" in the backend folder, then refresh.`);
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const e = new Error(data.message || `Request failed (${res.status})`);
-    e.hints = data.hints || [];
-    throw e;
-  }
+  if (!res.ok) { const e = new Error(data.message || `Request failed (${res.status})`); e.hints = data.hints || []; throw e; }
   return data;
 }
 
 // ------------------------------------------------------------------
-// State
+// State + vocabulary
 // ------------------------------------------------------------------
 const state = {
-  step: 0,
-  maxStep: 0,         // furthest step reached, for the clickable progress bar
-  stations: [],       // /api/gym/stations
-  injuries: [],       // /api/injuries
-  station: null,
-  exercise: null,
-  injury: null,
-  result: null,       // /api/substitutions response
-  where: {},          // /api/gym/locate response: exerciseId -> {stationId, stationName, zone}
+  step: 0, maxStep: 0, stations: [], injuries: [],
+  station: null, exercise: null, injury: null, result: null, where: {},
+  guide: null,        // open form guide: { data, back: 'results' | 'exercise' }
+  zone: 'All',
 };
 
-const ZONE_ICON = { Cardio: '🏃', 'Free weights': '🏋️', Machines: '⚙️', Functional: '🤸' };
+const ZONES = {
+  Push: { color: '#e8461f', hex: 0xe8461f, blurb: 'Chest, shoulders, triceps', icon: '↗' },
+  Pull: { color: '#2f6fd6', hex: 0x2f6fd6, blurb: 'Back and biceps', icon: '↙' },
+  Legs: { color: '#1f9d55', hex: 0x1f9d55, blurb: 'Quads, hamstrings, glutes, calves', icon: '⇅' },
+  Arms: { color: '#8b4fd6', hex: 0x8b4fd6, blurb: 'Biceps, triceps, forearms', icon: '◠' },
+  'Core & Functional': { color: '#0f9aa8', hex: 0x0f9aa8, blurb: 'Abs, carries, mats and turf', icon: '◎' },
+  Cardio: { color: '#d93a63', hex: 0xd93a63, blurb: 'Heart and lungs', icon: '♥' },
+};
+const ZONE_ORDER = Object.keys(ZONES);
+const zoneOf = (z) => ZONES[z] || { color: '#4a515b', hex: 0x4a515b, blurb: '', icon: '•' };
+
 const MUSCLE_GROUP = {
   quads: 'Legs', calves: 'Legs', adductors: 'Legs', 'hip-flexors': 'Legs',
   glutes: 'Glutes & hamstrings', hamstrings: 'Glutes & hamstrings',
   chest: 'Chest', 'upper-chest': 'Chest',
   lats: 'Back', rhomboids: 'Back', 'lower-back': 'Back', traps: 'Back', 'upper-back': 'Back',
   'front-delts': 'Shoulders', 'side-delts': 'Shoulders', 'rear-delts': 'Shoulders', 'rotator-cuff': 'Shoulders',
-  biceps: 'Arms', triceps: 'Arms', forearms: 'Arms',
-  core: 'Core', obliques: 'Core',
+  biceps: 'Arms', triceps: 'Arms', forearms: 'Arms', core: 'Core', obliques: 'Core',
 };
 const GROUP_ORDER = ['Legs', 'Glutes & hamstrings', 'Chest', 'Back', 'Shoulders', 'Arms', 'Core', 'Other'];
 const MUSCLE_PLAIN = {
@@ -67,41 +68,35 @@ const plain = (m) => MUSCLE_PLAIN[m] || m.replace(/-/g, ' ');
 const container = $('#scene');
 let renderer, labelRenderer, scene, camera, controls;
 const stationObjects = new Map(); // id -> {group, pad, label}
-let doors = [];
-let facade = null;
-let webglOk = true;
+const people = [];                // { rig, motion, phase, dy, prop }
+let doors = [], facade = null, ceiling = null, webglOk = true, skyTex = null, studioBg = null;
 
-// Layout only: where each backend station stands in the room (x, z, rotation, pad radius).
+const ROOM = { w: 84, d: 60 }; // x: -42..42, z: -30..30; entrance at z = +30
+// Layout only: where each backend station stands (x, z, rotation, highlight radius).
 const PLACES = {
-  treadmills:     { x: 21,  z: 12,   rot: -Math.PI / 2, r: 4.0 },
-  cardio:         { x: 21,  z: 1,    rot: -Math.PI / 2, r: 4.2 },
-  'squat-rack':   { x: -21, z: -15,  rot: 0, r: 3.8 },
-  bench:          { x: -11.5, z: -15, rot: 0, r: 3.8 },
-  platform:       { x: -2,  z: -15,  rot: 0, r: 3.8 },
-  dumbbells:      { x: -9,  z: -6,   rot: 0, r: 3.8 },
-  'leg-press':    { x: 8,   z: -15,  rot: 0, r: 3.2 },
-  'leg-curl':     { x: 16,  z: -15,  rot: 0, r: 3.2 },
-  'lat-pulldown': { x: 8,   z: -6.5, rot: 0, r: 3.2 },
-  'chest-press':  { x: 16,  z: -6.5, rot: 0, r: 3.2 },
-  cables:         { x: 9,   z: 2.5,  rot: 0, r: 3.4 },
-  kettlebells:    { x: -13, z: 3.5,  rot: 0, r: 3.0 },
-  pullup:         { x: -22, z: 3,    rot: Math.PI / 2, r: 2.8 },
-  turf:           { x: -24, z: 13,   rot: 0, r: 3.6 },
-  mats:           { x: -12, z: 13,   rot: 0, r: 3.8 },
+  'squat-rack': { x: -36, z: -24 }, smith: { x: -28, z: -24 }, 'hip-thrust': { x: -20, z: -24 }, 'back-extension': { x: -13, z: -24 },
+  'leg-press': { x: -36, z: -14 }, 'hack-squat': { x: -28, z: -14 }, 'leg-extension': { x: -20, z: -14 }, 'leg-curl': { x: -13, z: -14 },
+  calf: { x: -36, z: -5 }, 'hip-machine': { x: -28, z: -5 },
+  bench: { x: -3, z: -24 }, 'incline-bench': { x: 4, z: -24 }, 'shoulder-press': { x: 11, z: -24 },
+  'chest-press': { x: -3, z: -14 }, 'pec-deck': { x: 4, z: -14 }, 'cable-crossover': { x: 11, z: -14 }, dip: { x: -3, z: -5 },
+  platform: { x: 19.5, z: -24 }, 't-bar': { x: 26.5, z: -24 }, 'lat-pulldown': { x: 19.5, z: -14 }, 'seated-row': { x: 26.5, z: -14 }, pullup: { x: 23, z: -5 },
+  elliptical: { x: 36.5, z: -22, rot: -Math.PI / 2 }, rowers: { x: 36.5, z: -12, rot: -Math.PI / 2 }, bikes: { x: 36.5, z: -2, rot: -Math.PI / 2 }, treadmills: { x: 36.5, z: 9, rot: -Math.PI / 2 },
+  preacher: { x: -36, z: 6 }, 'arms-rack': { x: -28, z: 6 }, 'cable-arms': { x: -20, z: 6 }, dumbbells: { x: -11, z: 6 },
+  abs: { x: 1, z: 6 }, cables: { x: 8, z: 6 }, kettlebells: { x: 16, z: 6 }, mats: { x: 24, z: 6 }, turf: { x: -32, z: 22, rot: Math.PI / 2 },
 };
-const ROOM = { w: 60, d: 44 }; // x: -30..30, z: -22..22; entrance doors at z = +22
+const ZONE_AREAS = { // floor rectangles [x0, x1, z0, z1]
+  Legs: [-42, -8, -30, 0], Push: [-8, 16, -30, 0], Pull: [16, 31, -30, 0], Cardio: [31, 42, -30, 18],
+  Arms: [-42, -6, 0, 13], 'Core & Functional': [-6, 31, 0, 13],
+};
 
 function initScene() {
-  try {
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-  } catch {
-    webglOk = false;
-    return;
-  }
+  try { renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }); } catch { webglOk = false; return; }
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.82;
   container.appendChild(renderer.domElement);
 
   labelRenderer = new CSS2DRenderer();
@@ -109,30 +104,32 @@ function initScene() {
   container.appendChild(labelRenderer.domElement);
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xdfe3e8);
-  scene.fog = new THREE.Fog(0xdfe3e8, 60, 120);
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+  scene.environmentIntensity = 0.45;
+  skyTex = gradientTexture(['#14213d', '#3b3f6b', '#c0657a', '#f4a259'], [0, 0.45, 0.78, 1]);
+  studioBg = gradientTexture(['#cfd6df', '#e9ecf0'], [0, 1]);
+  scene.background = skyTex;
+  scene.fog = new THREE.Fog(0x2a2f4a, 70, 160);
 
-  camera = new THREE.PerspectiveCamera(50, 1, 0.1, 300);
-  camera.position.set(0, 1.7, 36);
+  camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
+  camera.position.set(0, 1.7, 48);
   controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(0, 1.6, 0);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.08;
-  controls.minDistance = 5;
-  controls.maxDistance = 70;
-  controls.maxPolarAngle = Math.PI * 0.47;
-  controls.enabled = false; // until the walk-in finishes
+  controls.target.set(0, 2, 30);
+  Object.assign(controls, { enableDamping: true, dampingFactor: 0.08, minDistance: 5, maxDistance: 140, maxPolarAngle: Math.PI * 0.47, enabled: false });
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xc9ccd2, 1.7));
-  const sun = new THREE.DirectionalLight(0xfff6ea, 2.1);
-  sun.position.set(18, 30, 16);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa1ab, 0.75));
+  const sun = new THREE.DirectionalLight(0xfff3e2, 2.2);
+  sun.position.set(22, 40, 18);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -34, right: 34, top: 26, bottom: -26, near: 1, far: 90 });
-  sun.shadow.bias = -0.0004;
+  sun.shadow.mapSize.set(4096, 4096);
+  Object.assign(sun.shadow.camera, { left: -46, right: 46, top: 34, bottom: -34, near: 1, far: 120 });
+  sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.02;
   scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xdfe8ff, 0.6); fill.position.set(-25, 20, -10); scene.add(fill);
 
   buildRoom();
+  buildOutside();
   new ResizeObserver(onResize).observe(container);
   onResize();
   renderer.domElement.addEventListener('pointermove', onPointerMove);
@@ -142,394 +139,579 @@ function initScene() {
   renderer.setAnimationLoop(tick);
 }
 
-// ---------- geometry helpers ----------
-const mats = {};
-function mat(color, opts = {}) {
-  const key = color + JSON.stringify(opts);
-  if (!mats[key]) mats[key] = new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.15, ...opts });
-  return mats[key];
+// ---------- textures ----------
+function gradientTexture(colors, stops) {
+  const c = document.createElement('canvas'); c.width = 4; c.height = 512;
+  const x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 0, 512);
+  colors.forEach((col, i) => g.addColorStop(stops[i], col));
+  x.fillStyle = g; x.fillRect(0, 0, 4, 512);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
-function box(g, w, h, d, color, x, y, z, opts) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), opts ? mat(color, opts) : mat(color));
-  m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); return m;
+function noiseTexture({ base, speck, tiles = 0, seam = null, size = 512, n = 9000, repeat = 1 }) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const x = c.getContext('2d'); x.fillStyle = base; x.fillRect(0, 0, size, size);
+  for (let i = 0; i < n; i++) {
+    x.fillStyle = speck[i % speck.length]; x.globalAlpha = 0.35 + Math.random() * 0.5;
+    x.fillRect(Math.random() * size, Math.random() * size, 1 + Math.random() * 2, 1 + Math.random() * 2);
+  }
+  x.globalAlpha = 1;
+  if (tiles && seam) { x.strokeStyle = seam; x.lineWidth = 2; for (let i = 0; i <= tiles; i++) { const p = (i * size) / tiles; x.beginPath(); x.moveTo(p, 0); x.lineTo(p, size); x.moveTo(0, p); x.lineTo(size, p); x.stroke(); } }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat, repeat); t.anisotropy = 8;
+  return t;
 }
-function cyl(g, r, len, color, x, y, z, axis = 'y', seg = 20) {
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, seg), mat(color));
-  m.position.set(x, y, z);
-  if (axis === 'x') m.rotation.z = Math.PI / 2;
-  if (axis === 'z') m.rotation.x = Math.PI / 2;
-  m.castShadow = true; g.add(m); return m;
+function woodTexture() {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 512;
+  const x = c.getContext('2d'); x.fillStyle = '#c4935f'; x.fillRect(0, 0, 256, 512);
+  for (let i = 0; i < 256; i += 32) { x.fillStyle = i % 64 ? '#b98a57' : '#cf9e68'; x.fillRect(i, 0, 30, 512); }
+  for (let i = 0; i < 400; i++) { x.strokeStyle = `rgba(90,55,25,${Math.random() * 0.15})`; x.beginPath(); const xx = Math.random() * 256; x.moveTo(xx, 0); x.bezierCurveTo(xx + 6, 170, xx - 6, 340, xx + 3, 512); x.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
-function ball(g, r, color, x, y, z) {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 16), mat(color));
-  m.position.set(x, y, z); m.castShadow = true; g.add(m); return m;
-}
-function sub(g, x, z, ry = 0) {
-  const s = new THREE.Group(); s.position.set(x, 0, z); s.rotation.y = ry; g.add(s); return s;
-}
-function textTexture(text, { w = 1024, h = 256, bg = null, color = '#111418', font = 'bold 150px system-ui, sans-serif', accent } = {}) {
+function textTexture(text, { w = 1024, h = 256, bg = null, color = '#111418', font = '800 150px Inter, system-ui, sans-serif', accent, radius = 0 } = {}) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const x = c.getContext('2d');
-  if (bg) { x.fillStyle = bg; x.fillRect(0, 0, w, h); }
+  if (bg) { x.fillStyle = bg; if (radius) { x.beginPath(); x.roundRect(0, 0, w, h, radius); x.fill(); } else x.fillRect(0, 0, w, h); }
   x.font = font; x.textAlign = 'center'; x.textBaseline = 'middle';
   if (accent) {
     const [a, b] = text.split(' ');
     const wa = x.measureText(a + ' ').width, wb = x.measureText(b).width, start = w / 2 - (wa + wb) / 2;
     x.textAlign = 'left'; x.fillStyle = accent; x.fillText(a + ' ', start, h / 2); x.fillStyle = color; x.fillText(b, start + wa, h / 2);
   } else { x.fillStyle = color; x.fillText(text, w / 2, h / 2); }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
   return t;
 }
 
-const C = {
-  steel: 0x3b4048, dark: 0x22262b, chrome: 0xc4c9cf, pad: 0x1f2328, plate: 0x16181b,
-  accent: 0xe8461f, wood: 0xc79b6b, rubber: 0x2e3238, mat: 0x3f6db3, blue: 0x3f6db3,
-  green: 0x4f9a5e, yellow: 0xe0b23f, turf: 0x4c8b4a, screen: 0x1b2b3a, white: 0xf2f3f5,
+// ---------- geometry helpers ----------
+const mats = {};
+function mat(color, opts = {}) {
+  const key = color + JSON.stringify(opts);
+  if (!mats[key]) mats[key] = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.1, ...opts });
+  return mats[key];
+}
+const M = {
+  steel: () => mat(0x4a525c, { roughness: 0.35, metalness: 0.6 }), dark: () => mat(0x1d2025, { roughness: 0.5, metalness: 0.3 }),
+  chrome: () => mat(0xd4d8dd, { roughness: 0.12, metalness: 1 }), pad: () => mat(0x23272d, { roughness: 0.65, metalness: 0 }),
+  plate: () => mat(0x15171a, { roughness: 0.6, metalness: 0.2 }), accent: () => mat(0xe8461f, { roughness: 0.4, metalness: 0.1 }),
+  rubber: () => mat(0x2b2f35, { roughness: 0.95, metalness: 0 }), screen: () => mat(0x10202e, { emissive: 0x2a7bd6, emissiveIntensity: 0.7, roughness: 0.2 }),
 };
+function box(g, w, h, d, m, x, y, z) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), typeof m === 'number' ? mat(m) : m);
+  mesh.position.set(x, y, z); mesh.castShadow = mesh.receiveShadow = true; g.add(mesh); return mesh;
+}
+function cyl(g, r, len, m, x, y, z, axis = 'y', seg = 20) {
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, seg), typeof m === 'number' ? mat(m) : m);
+  mesh.position.set(x, y, z);
+  if (axis === 'x') mesh.rotation.z = Math.PI / 2;
+  if (axis === 'z') mesh.rotation.x = Math.PI / 2;
+  mesh.castShadow = true; g.add(mesh); return mesh;
+}
+function ball(g, r, m, x, y, z) {
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 16), typeof m === 'number' ? mat(m) : m);
+  mesh.position.set(x, y, z); mesh.castShadow = true; g.add(mesh); return mesh;
+}
+function sub(g, x, z, ry = 0) { const s = new THREE.Group(); s.position.set(x, 0, z); s.rotation.y = ry; g.add(s); return s; }
+function plane(w, d, m, x, y, z) { const p = new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); p.rotation.x = -Math.PI / 2; p.position.set(x, y, z); p.receiveShadow = true; scene.add(p); return p; }
 
 // ---------- reusable equipment ----------
 function barbell(g, x, y, z, len = 2.2, ry = 0) {
   const s = sub(g, x, z, ry); s.position.y = y;
-  cyl(s, 0.028, len, C.chrome, 0, 0, 0, 'x');
+  cyl(s, 0.028, len, M.chrome(), 0, 0, 0, 'x');
   for (const k of [-1, 1]) {
-    cyl(s, 0.36, 0.07, C.plate, k * (len / 2 - 0.25), 0, 0, 'x');
-    cyl(s, 0.26, 0.06, C.accent, k * (len / 2 - 0.33), 0, 0, 'x');
+    cyl(s, 0.36, 0.07, M.plate(), k * (len / 2 - 0.25), 0, 0, 'x', 28);
+    cyl(s, 0.26, 0.06, M.accent(), k * (len / 2 - 0.33), 0, 0, 'x', 28);
+    cyl(s, 0.045, 0.08, M.chrome(), k * (len / 2 - 0.17), 0, 0, 'x');
   }
+  return s;
 }
 function dumbbell(g, x, y, z, s = 1) {
-  cyl(g, 0.022 * s, 0.3 * s, C.chrome, x, y, z, 'x');
-  cyl(g, 0.065 * s, 0.09 * s, C.plate, x - 0.16 * s, y, z, 'x', 8);
-  cyl(g, 0.065 * s, 0.09 * s, C.plate, x + 0.16 * s, y, z, 'x', 8);
+  cyl(g, 0.022 * s, 0.3 * s, M.chrome(), x, y, z, 'x');
+  cyl(g, 0.065 * s, 0.09 * s, M.plate(), x - 0.16 * s, y, z, 'x', 8);
+  cyl(g, 0.065 * s, 0.09 * s, M.plate(), x + 0.16 * s, y, z, 'x', 8);
 }
 function flatBench(g, x, z, ry = 0, incline = 0) {
   const b = sub(g, x, z, ry);
-  box(b, 0.25, 0.38, 1.0, C.steel, 0, 0.19, 0);
-  const seat = box(b, 0.32, 0.09, 1.2, C.pad, 0, 0.44, 0);
-  seat.rotation.x = -incline;
+  box(b, 0.25, 0.38, 0.25, M.steel(), 0, 0.19, -0.45); box(b, 0.25, 0.38, 0.25, M.steel(), 0, 0.19, 0.45);
+  box(b, 0.12, 0.08, 1.0, M.steel(), 0, 0.36, 0);
+  box(b, 0.32, 0.09, 0.62, M.pad(), 0, 0.45, 0.28);
+  const back = box(b, 0.32, 0.09, 0.62, M.pad(), 0, 0.45, -0.32);
+  if (incline) { back.rotation.x = -incline; back.position.set(0, 0.45 + Math.sin(incline) * 0.31, -0.02 - Math.cos(incline) * 0.31); }
   return b;
 }
-function stack(g, x, z, h = 1.6) { // weight-stack column
-  box(g, 0.08, h + 0.4, 0.08, C.steel, x - 0.25, (h + 0.4) / 2, z);
-  box(g, 0.08, h + 0.4, 0.08, C.steel, x + 0.25, (h + 0.4) / 2, z);
-  box(g, 0.42, h * 0.55, 0.22, C.dark, x, h * 0.28, z);
-  box(g, 0.62, 0.08, 0.3, C.steel, x, h + 0.42, z);
+function stack(g, x, z, h = 1.6) {
+  for (const k of [-1, 1]) box(g, 0.08, h + 0.4, 0.08, M.steel(), x + k * 0.26, (h + 0.4) / 2, z);
+  for (let i = 0; i < 9; i++) box(g, 0.42, 0.055, 0.2, i === 8 ? M.accent() : M.dark(), x, 0.06 + i * 0.065, z);
+  cyl(g, 0.012, h - 0.3, M.chrome(), x, h / 2 + 0.3, z);
+  box(g, 0.66, 0.08, 0.3, M.steel(), x, h + 0.42, z);
+  box(g, 0.7, 0.05, 0.5, M.dark(), x, 0.025, z);
 }
-function seat(g, x, z, ry = 0, back = true) {
+function seat(g, x, z, ry = 0, back = true, h = 0.5) {
   const s = sub(g, x, z, ry);
-  box(s, 0.16, 0.45, 0.16, C.steel, 0, 0.22, 0);
-  box(s, 0.5, 0.1, 0.5, C.pad, 0, 0.5, 0);
-  if (back) box(s, 0.5, 0.75, 0.1, C.pad, 0, 0.95, 0.27);
+  box(s, 0.14, h - 0.05, 0.14, M.steel(), 0, (h - 0.05) / 2, 0);
+  box(s, 0.52, 0.1, 0.5, M.pad(), 0, h, 0);
+  if (back) box(s, 0.52, 0.78, 0.1, M.pad(), 0, h + 0.45, 0.27);
   return s;
 }
+function screen(g, w, h, x, y, z, rx = 0) { const m = box(g, w, h, 0.03, M.screen(), x, y, z); m.rotation.x = rx; return m; }
 function treadmill(g, x, z) {
   const t = sub(g, x, z);
-  box(t, 0.85, 0.22, 2.0, C.dark, 0, 0.11, 0);
-  box(t, 0.6, 0.02, 1.7, 0x101215, 0, 0.23, 0.05);
-  for (const k of [-1, 1]) box(t, 0.06, 1.25, 0.06, C.steel, k * 0.38, 0.75, -0.85);
-  const con = box(t, 0.8, 0.35, 0.12, C.dark, 0, 1.4, -0.85); con.rotation.x = 0.5;
-  box(t, 0.55, 0.25, 0.02, C.screen, 0, 1.43, -0.8, { emissive: 0x2a6cb3, emissiveIntensity: 0.5 }).rotation.x = 0.5;
-  for (const k of [-1, 1]) cyl(t, 0.025, 0.7, C.chrome, k * 0.4, 1.0, -0.5, 'z');
+  box(t, 0.88, 0.22, 2.0, M.dark(), 0, 0.11, 0);
+  box(t, 0.62, 0.02, 1.7, mat(0x0d0f11, { roughness: 0.95 }), 0, 0.23, 0.05);
+  for (const k of [-1, 1]) box(t, 0.07, 1.25, 0.07, M.steel(), k * 0.4, 0.75, -0.85);
+  const con = box(t, 0.84, 0.34, 0.12, M.dark(), 0, 1.4, -0.85); con.rotation.x = 0.5;
+  screen(t, 0.55, 0.24, 0, 1.44, -0.8, 0.5);
+  for (const k of [-1, 1]) cyl(t, 0.025, 0.75, M.chrome(), k * 0.42, 1.0, -0.48, 'z');
 }
 function bike(g, x, z, air = false) {
   const b = sub(g, x, z);
-  box(b, 0.5, 0.08, 1.2, C.dark, 0, 0.04, 0);
-  const frame = box(b, 0.12, 0.9, 0.12, C.steel, 0, 0.5, 0.15); frame.rotation.x = -0.25;
-  box(b, 0.26, 0.08, 0.3, C.pad, 0, 0.98, 0.3);
-  const post = box(b, 0.1, 1.0, 0.1, C.steel, 0, 0.6, -0.4); post.rotation.x = 0.2;
-  cyl(b, 0.03, 0.5, C.chrome, 0, 1.1, -0.5, 'x');
-  if (air) { cyl(b, 0.42, 0.18, C.dark, 0, 0.5, -0.65, 'x', 24); }
-  else cyl(b, 0.25, 0.1, C.accent, 0, 0.38, -0.45, 'x');
+  box(b, 0.5, 0.08, 1.2, M.dark(), 0, 0.04, 0);
+  const frame = box(b, 0.12, 0.95, 0.12, M.steel(), 0, 0.5, 0.25); frame.rotation.x = -0.2;
+  box(b, 0.28, 0.08, 0.32, M.pad(), 0, 0.98, 0.32);
+  const post = box(b, 0.1, 1.05, 0.1, M.steel(), 0, 0.6, -0.4); post.rotation.x = 0.2;
+  cyl(b, 0.03, 0.55, M.chrome(), 0, 1.13, -0.52, 'x');
+  if (air) cyl(b, 0.45, 0.2, M.dark(), 0, 0.52, -0.7, 'x', 28); else cyl(b, 0.26, 0.1, M.accent(), 0, 0.4, -0.45, 'x', 24);
+  screen(b, 0.22, 0.15, 0, 1.25, -0.55, 0.4);
 }
 function rower(g, x, z) {
   const r = sub(g, x, z);
-  box(r, 0.14, 0.12, 2.6, C.steel, 0, 0.3, 0.2);
-  box(r, 0.5, 0.1, 0.2, C.dark, 0, 0.08, 1.4);
-  cyl(r, 0.3, 0.32, C.dark, 0, 0.45, -1.1, 'x', 24);
-  box(r, 0.3, 0.08, 0.35, C.pad, 0, 0.42, 0.5);
-  for (const k of [-1, 1]) { const f = box(r, 0.14, 0.02, 0.3, C.steel, k * 0.14, 0.45, -0.6); f.rotation.x = -0.9; }
+  box(r, 0.14, 0.12, 2.6, M.steel(), 0, 0.3, 0.2);
+  box(r, 0.5, 0.1, 0.2, M.dark(), 0, 0.08, 1.4);
+  cyl(r, 0.32, 0.34, M.dark(), 0, 0.46, -1.1, 'x', 28);
+  box(r, 0.3, 0.08, 0.35, M.pad(), 0, 0.42, 0.5);
+  for (const k of [-1, 1]) { const f = box(r, 0.14, 0.02, 0.3, M.steel(), k * 0.14, 0.45, -0.6); f.rotation.x = -0.9; }
+  screen(r, 0.2, 0.14, 0, 0.95, -0.95, 0.5);
 }
 function elliptical(g, x, z) {
   const e = sub(g, x, z);
-  box(e, 0.6, 0.12, 1.9, C.dark, 0, 0.06, 0);
-  cyl(e, 0.28, 0.25, C.steel, 0, 0.35, 0.75, 'x');
-  for (const k of [-1, 1]) {
-    box(e, 0.14, 0.04, 0.4, C.pad, k * 0.17, 0.45, 0.1);
-    const arm = box(e, 0.04, 1.5, 0.04, C.chrome, k * 0.22, 1.05, -0.2); arm.rotation.x = 0.2;
-  }
-  box(e, 0.12, 1.3, 0.12, C.steel, 0, 0.7, -0.55);
-  box(e, 0.4, 0.3, 0.1, C.screen, 0, 1.4, -0.6);
+  box(e, 0.6, 0.12, 1.9, M.dark(), 0, 0.06, 0);
+  cyl(e, 0.3, 0.25, M.steel(), 0, 0.36, 0.75, 'x', 28);
+  for (const k of [-1, 1]) { box(e, 0.14, 0.04, 0.4, M.pad(), k * 0.17, 0.45, 0.1); const arm = box(e, 0.04, 1.5, 0.04, M.chrome(), k * 0.22, 1.05, -0.2); arm.rotation.x = 0.2; }
+  box(e, 0.12, 1.3, 0.12, M.steel(), 0, 0.7, -0.55);
+  screen(e, 0.4, 0.26, 0, 1.4, -0.6);
 }
 function stairClimber(g, x, z) {
   const s = sub(g, x, z);
-  box(s, 0.9, 0.1, 1.3, C.dark, 0, 0.05, 0);
-  for (let i = 0; i < 5; i++) box(s, 0.7, 0.18, 0.28, C.rubber, 0, 0.2 + i * 0.2, 0.4 - i * 0.22);
-  for (const k of [-1, 1]) box(s, 0.06, 1.8, 0.06, C.steel, k * 0.42, 0.9, -0.55);
-  box(s, 0.6, 0.3, 0.1, C.screen, 0, 1.6, -0.6);
+  box(s, 0.9, 0.1, 1.3, M.dark(), 0, 0.05, 0);
+  for (let i = 0; i < 5; i++) box(s, 0.7, 0.18, 0.28, M.rubber(), 0, 0.2 + i * 0.2, 0.4 - i * 0.22);
+  for (const k of [-1, 1]) box(s, 0.06, 1.8, 0.06, M.steel(), k * 0.42, 0.9, -0.55);
+  screen(s, 0.6, 0.3, 0, 1.6, -0.6);
 }
 function powerRack(g, x, z) {
   const r = sub(g, x, z);
-  box(r, 2.3, 0.04, 2.3, C.wood, 0, 0.02, 0.2);
-  for (const [px, pz] of [[-0.75, -0.6], [0.75, -0.6], [-0.75, 0.6], [0.75, 0.6]]) box(r, 0.09, 2.5, 0.09, C.steel, px, 1.25, pz);
-  for (const pz of [-0.6, 0.6]) box(r, 1.6, 0.09, 0.09, C.steel, 0, 2.5, pz);
-  for (const px of [-0.75, 0.75]) box(r, 0.09, 0.09, 1.3, C.steel, px, 2.5, 0);
+  box(r, 2.4, 0.04, 2.4, woodMat, 0, 0.02, 0.2);
+  for (const [px, pz] of [[-0.75, -0.6], [0.75, -0.6], [-0.75, 0.6], [0.75, 0.6]]) box(r, 0.09, 2.5, 0.09, M.steel(), px, 1.25, pz);
+  for (const pz of [-0.6, 0.6]) box(r, 1.6, 0.09, 0.09, M.steel(), 0, 2.5, pz);
+  for (const px of [-0.75, 0.75]) { box(r, 0.09, 0.09, 1.3, M.steel(), px, 2.5, 0); box(r, 0.06, 0.06, 1.3, M.accent(), px, 0.9, 0); }
   barbell(r, 0, 1.4, 0.6, 2.2);
-  cyl(r, 0.36, 0.07, C.plate, 1.05, 0.38, -0.5, 'x'); cyl(r, 0.36, 0.07, C.plate, 1.13, 0.38, -0.5, 'x');
+  for (const k of [0, 1]) cyl(r, 0.36, 0.07, M.plate(), 1.05 + k * 0.08, 0.38, -0.5, 'x', 28);
 }
-function benchPress(g, x, z) {
+function benchPress(g, x, z, incline = 0) {
   const b = sub(g, x, z);
-  box(b, 2.4, 0.04, 2.0, C.rubber, 0, 0.02, 0);
-  flatBench(b, 0, 0.2);
-  for (const k of [-1, 1]) box(b, 0.09, 1.3, 0.09, C.steel, k * 0.55, 0.65, -0.45);
-  barbell(b, 0, 1.15, -0.45, 2.2);
+  box(b, 2.4, 0.04, 2.2, M.rubber(), 0, 0.02, 0);
+  flatBench(b, 0, 0.3, 0, incline);
+  for (const k of [-1, 1]) { box(b, 0.09, 1.35, 0.09, M.steel(), k * 0.55, 0.68, -0.45); box(b, 0.12, 0.05, 0.12, M.accent(), k * 0.55, 1.15, -0.4); }
+  barbell(b, 0, 1.2, -0.45, 2.2);
 }
 function platform(g, x, z) {
   const p = sub(g, x, z);
-  box(p, 2.4, 0.06, 2.4, C.rubber, 0, 0.03, 0);
-  box(p, 1.1, 0.065, 2.4, C.wood, 0, 0.035, 0);
+  box(p, 2.5, 0.06, 2.5, M.rubber(), 0, 0.03, 0);
+  box(p, 1.1, 0.065, 2.5, woodMat, 0, 0.035, 0);
   barbell(p, 0, 0.42, 0.1, 2.2);
 }
 function legPress(g, x, z) {
   const l = sub(g, x, z);
-  box(l, 0.9, 0.2, 2.4, C.steel, 0, 0.1, 0);
-  const s = box(l, 0.65, 0.12, 0.85, C.pad, 0, 0.6, 0.6); s.rotation.x = 0.65;
-  const sled = box(l, 0.8, 0.8, 0.08, C.dark, 0, 1.0, -0.75); sled.rotation.x = -0.5;
-  for (const k of [-1, 1]) { const rail = box(l, 0.07, 0.07, 1.7, C.chrome, k * 0.35, 0.8, -0.35); rail.rotation.x = 0.55; }
-  for (const k of [-1, 1]) cyl(l, 0.3, 0.07, C.plate, k * 0.5, 1.1, -0.65, 'x');
+  box(l, 1.0, 0.2, 2.6, M.steel(), 0, 0.1, 0);
+  const s = box(l, 0.7, 0.12, 0.6, M.pad(), 0, 0.55, 0.55); s.rotation.x = 0.15;
+  const back = box(l, 0.7, 0.9, 0.12, M.pad(), 0, 0.85, 0.95); back.rotation.x = -0.6;
+  const sled = box(l, 0.9, 0.85, 0.08, M.dark(), 0, 1.15, -0.75); sled.rotation.x = -0.6;
+  for (const k of [-1, 1]) { const rail = box(l, 0.08, 0.08, 1.9, M.chrome(), k * 0.42, 0.85, -0.4); rail.rotation.x = 0.6; cyl(l, 0.32, 0.07, M.plate(), k * 0.58, 1.18, -0.62, 'x', 28); }
 }
 function hackSquat(g, x, z) {
   const h = sub(g, x, z);
-  box(h, 0.9, 0.15, 2.0, C.steel, 0, 0.07, 0);
-  const back = box(h, 0.55, 1.4, 0.1, C.pad, 0, 1.0, 0.3); back.rotation.x = -0.35;
-  for (const k of [-1, 1]) { const rail = box(h, 0.07, 2.1, 0.07, C.chrome, k * 0.38, 1.05, 0.35); rail.rotation.x = -0.35; }
-  box(h, 0.7, 0.06, 0.5, C.dark, 0, 0.2, -0.3);
+  box(h, 1.0, 0.15, 2.0, M.steel(), 0, 0.07, 0);
+  const back = box(h, 0.6, 1.5, 0.1, M.pad(), 0, 1.0, 0.3); back.rotation.x = -0.35;
+  for (const k of [-1, 1]) { const rail = box(h, 0.08, 2.2, 0.08, M.chrome(), k * 0.42, 1.1, 0.35); rail.rotation.x = -0.35; box(h, 0.16, 0.12, 0.3, M.pad(), k * 0.2, 1.7, 0.05); }
+  box(h, 0.75, 0.06, 0.55, M.dark(), 0, 0.2, -0.35);
 }
-function legExtension(g, x, z, curl = false) {
+function legMachine(g, x, z, kind) {
   const l = sub(g, x, z);
-  stack(l, 0, -0.75, 1.5);
-  seat(l, 0, 0.2);
-  cyl(l, 0.08, 0.5, C.pad, 0, curl ? 0.65 : 0.35, curl ? -0.25 : -0.3, 'x');
-  box(l, 0.06, 0.6, 0.06, C.steel, 0.3, 0.5, -0.2);
+  stack(l, 0, -0.8, 1.5);
+  seat(l, 0, 0.2, Math.PI);
+  if (kind === 'ext') cyl(l, 0.08, 0.55, M.pad(), 0, 0.35, -0.35, 'x');
+  if (kind === 'curl') { cyl(l, 0.08, 0.55, M.pad(), 0, 0.6, -0.4, 'x'); cyl(l, 0.07, 0.55, M.pad(), 0, 0.72, 0.0, 'x'); }
+  if (kind === 'hip') for (const k of [-1, 1]) box(l, 0.08, 0.35, 0.45, M.pad(), k * 0.32, 0.65, -0.1);
+  box(l, 0.06, 0.65, 0.06, M.steel(), 0.32, 0.5, -0.2);
 }
 function latPulldown(g, x, z, row = false) {
   const l = sub(g, x, z);
   stack(l, 0, -0.6, row ? 1.4 : 2.0);
   if (!row) {
-    box(l, 0.1, 0.1, 1.0, C.steel, 0, 2.4, -0.1);
-    cyl(l, 0.02, 1.2, C.chrome, 0, 1.9, 0.35, 'x');
-    cyl(l, 0.006, 0.5, C.dark, 0, 2.15, 0.35);
+    box(l, 0.1, 0.1, 1.0, M.steel(), 0, 2.4, -0.1);
+    cyl(l, 0.02, 1.25, M.chrome(), 0, 1.9, 0.35, 'x');
+    cyl(l, 0.006, 0.5, M.dark(), 0, 2.15, 0.35);
     seat(l, 0, 0.5, 0, false);
-    cyl(l, 0.07, 0.5, C.pad, 0, 0.75, 0.25, 'x');
+    cyl(l, 0.07, 0.5, M.pad(), 0, 0.78, 0.25, 'x');
   } else {
-    box(l, 0.3, 0.12, 1.8, C.steel, 0, 0.25, 0.6);
-    box(l, 0.45, 0.08, 0.45, C.pad, 0, 0.45, 0.9);
-    box(l, 0.25, 0.4, 0.1, C.pad, 0, 0.6, 0.3);
-    cyl(l, 0.02, 0.5, C.chrome, 0, 0.75, 0.1, 'x');
+    box(l, 0.3, 0.12, 1.8, M.steel(), 0, 0.25, 0.6);
+    box(l, 0.45, 0.08, 0.45, M.pad(), 0, 0.45, 0.9);
+    box(l, 0.5, 0.4, 0.1, M.pad(), 0, 0.6, 0.3);
+    cyl(l, 0.02, 0.5, M.chrome(), 0, 0.75, 0.1, 'x');
   }
 }
 function chestPress(g, x, z, pec = false) {
   const c = sub(g, x, z);
-  stack(c, 0, -0.75, 1.6);
+  stack(c, 0, -0.8, 1.6);
   seat(c, 0, 0.35, Math.PI);
-  if (pec) for (const k of [-1, 1]) { const a = box(c, 0.08, 0.5, 0.5, C.pad, k * 0.45, 1.1, 0.1); a.rotation.y = k * 0.5; }
-  else for (const k of [-1, 1]) cyl(c, 0.025, 0.6, C.chrome, k * 0.32, 1.0, -0.05, 'z');
+  if (pec) for (const k of [-1, 1]) { const a = box(c, 0.08, 0.55, 0.5, M.pad(), k * 0.48, 1.12, 0.1); a.rotation.y = k * 0.5; box(c, 0.06, 0.06, 0.7, M.steel(), k * 0.4, 1.5, -0.2); }
+  else for (const k of [-1, 1]) { cyl(c, 0.025, 0.65, M.chrome(), k * 0.33, 1.0, -0.05, 'z'); box(c, 0.06, 0.06, 0.8, M.steel(), k * 0.33, 1.0, -0.5); }
+}
+function cableTower(g, x, z, h = 2.4) {
+  const c = sub(g, x, z);
+  box(c, 0.16, h, 0.16, M.steel(), 0, h / 2, 0);
+  box(c, 0.5, 1.3, 0.28, M.dark(), 0, 0.66, -0.3);
+  ball(c, 0.08, M.accent(), 0, 1.7, 0.12);
+  cyl(c, 0.006, 1.0, M.chrome(), 0, 1.2, 0.12);
+  return c;
 }
 function cableCrossover(g, x, z) {
   const c = sub(g, x, z);
-  for (const k of [-1, 1]) {
-    box(c, 0.14, 2.6, 0.14, C.steel, k * 1.8, 1.3, 0);
-    box(c, 0.5, 1.3, 0.28, C.dark, k * 1.8, 0.66, -0.3);
-    ball(c, 0.08, C.accent, k * 1.8, 1.9, 0.12);
-    cyl(c, 0.006, 0.9, C.chrome, k * 1.8, 1.45, 0.12);
-  }
-  box(c, 3.75, 0.14, 0.14, C.steel, 0, 2.6, 0);
-  box(c, 3.0, 0.03, 1.4, C.rubber, 0, 0.015, 0.4);
+  for (const k of [-1, 1]) cableTower(c, k * 1.8, 0, 2.6);
+  box(c, 3.75, 0.14, 0.14, M.steel(), 0, 2.6, 0);
+  box(c, 3.2, 0.03, 1.5, M.rubber(), 0, 0.015, 0.4);
 }
 function kettlebell(g, x, y, z, color, s = 1) {
   ball(g, 0.15 * s, color, x, y + 0.15 * s, z);
-  const h = new THREE.Mesh(new THREE.TorusGeometry(0.09 * s, 0.022 * s, 8, 20, Math.PI), mat(color));
-  h.position.set(x, y + 0.26 * s, z); h.castShadow = true; g.add(h);
+  const h = new THREE.Mesh(new THREE.TorusGeometry(0.09 * s, 0.022 * s, 8, 20, Math.PI), mat(color)); h.position.set(x, y + 0.26 * s, z); h.castShadow = true; g.add(h);
+}
+function rack(g, w, shelves, fill) { // generic storage rack
+  for (const k of [-w / 2, w / 2]) { box(g, 0.08, 1.05, 0.08, M.steel(), k, 0.52, -0.2); box(g, 0.08, 1.05, 0.08, M.steel(), k, 0.52, 0.2); }
+  shelves.forEach((y) => box(g, w, 0.05, 0.5, M.steel(), 0, y, 0));
+  if (fill) fill(g);
 }
 
 // ---------- station builders ----------
+let woodMat;
 const BUILDERS = {
   treadmills(g) { for (let i = 0; i < 4; i++) treadmill(g, -2.4 + i * 1.6, 0); },
-  cardio(g) {
-    bike(g, -2.8, 0); bike(g, -1.6, 0, true); elliptical(g, -0.2, 0); stairClimber(g, 1.2, 0); rower(g, 2.8, 0.2);
-  },
-  'squat-rack'(g) { powerRack(g, -1.3, 0); powerRack(g, 1.5, 0); },
+  bikes(g) { bike(g, -1.8, 0); bike(g, -0.6, 0); bike(g, 0.6, 0, true); bike(g, 1.8, 0, true); },
+  rowers(g) { for (const x of [-1.8, -0.6, 0.6, 1.8]) rower(g, x, 0.2); },
+  elliptical(g) { elliptical(g, -1.6, 0); elliptical(g, -0.2, 0); stairClimber(g, 1.4, 0); },
   bench(g) { benchPress(g, -1.4, 0); benchPress(g, 1.4, 0); },
-  platform(g) { platform(g, -1.3, 0); platform(g, 1.3, 0); },
-  dumbbells(g) {
-    for (const k of [-1.9, 1.9]) { box(g, 0.08, 0.9, 0.08, C.steel, k, 0.45, -0.2); box(g, 0.08, 0.9, 0.08, C.steel, k, 0.45, 0.2); }
-    box(g, 4.0, 0.06, 0.5, C.steel, 0, 0.5, 0); box(g, 4.0, 0.06, 0.4, C.steel, 0, 0.85, -0.05);
-    for (let i = 0; i < 9; i++) {
-      const x = -1.7 + i * 0.42, s = 0.75 + i * 0.09;
-      dumbbell(g, x, 0.57 + 0.065 * s, 0.08, s);
-      dumbbell(g, x, 0.91 + 0.05 * s, -0.05, s * 0.7);
-    }
-    flatBench(g, -1, 1.6, Math.PI / 2, 0.3); flatBench(g, 1, 1.6, Math.PI / 2);
+  'incline-bench'(g) { benchPress(g, -1.4, 0, 0.55); benchPress(g, 1.4, 0, 0.3); },
+  'shoulder-press'(g) {
+    const m = sub(g, -1.0, 0); stack(m, 0, -0.8, 1.8); seat(m, 0, 0.25, Math.PI);
+    for (const k of [-1, 1]) { box(m, 0.06, 0.9, 0.06, M.steel(), k * 0.38, 1.3, -0.1); cyl(m, 0.025, 0.25, M.chrome(), k * 0.38, 1.75, 0.0, 'z'); }
+    flatBench(g, 1.2, 0.2, 0, 1.3); dumbbell(g, 1.2, 0.07, 1.0, 1); dumbbell(g, 1.5, 0.07, 1.1, 1);
   },
-  'leg-press'(g) { legPress(g, -1, 0); hackSquat(g, 1.1, 0); },
-  'leg-curl'(g) { legExtension(g, -0.9, 0); legExtension(g, 0.9, 0, true); },
-  'lat-pulldown'(g) { latPulldown(g, -0.9, 0); latPulldown(g, 1.0, -0.2, true); },
-  'chest-press'(g) { chestPress(g, -0.9, 0); chestPress(g, 0.9, 0, true); },
-  cables(g) { cableCrossover(g, 0, 0); },
-  kettlebells(g) {
-    box(g, 2.8, 0.05, 0.6, C.steel, 0, 0.35, 0); box(g, 2.8, 0.05, 0.6, C.steel, 0, 0.02, 0);
-    for (const k of [-1.35, 1.35]) box(g, 0.05, 0.35, 0.55, C.steel, k, 0.18, 0);
-    [C.blue, C.yellow, C.green, C.accent, C.dark, C.blue].forEach((c, i) => kettlebell(g, -1.1 + i * 0.44, 0.38, 0, c, 0.75 + i * 0.1));
-    ball(g, 0.2, 0x7a5c3e, -0.6, 0.2, 0.9); ball(g, 0.24, 0x8b6a47, 0.1, 0.24, 1.0); ball(g, 0.18, 0x6e5235, 0.7, 0.18, 0.85);
+  calf(g) {
+    const s = sub(g, -0.8, 0);
+    for (const k of [-1, 1]) box(s, 0.1, 2.2, 0.1, M.steel(), k * 0.45, 1.1, -0.4);
+    box(s, 0.9, 0.12, 0.35, M.pad(), 0, 1.6, -0.1); box(s, 0.9, 0.12, 0.45, M.dark(), 0, 0.1, 0.0); stack(s, 0, -0.75, 1.9);
+    const sc = sub(g, 1.0, 0); seat(sc, 0, 0.3, Math.PI, false, 0.45); box(sc, 0.5, 0.1, 0.25, M.pad(), 0, 0.7, -0.2); box(sc, 0.5, 0.1, 0.25, M.dark(), 0, 0.12, -0.35);
+  },
+  'hip-thrust'(g) {
+    box(g, 3.0, 0.04, 2.6, M.rubber(), 0, 0.02, 0);
+    flatBench(g, -0.7, -0.6, Math.PI / 2); barbell(g, -0.7, 0.36, 0.4, 1.8);
+    const m = sub(g, 1.0, 0); box(m, 0.8, 0.45, 0.4, M.pad(), 0, 0.3, -0.5); box(m, 0.9, 0.08, 1.5, M.steel(), 0, 0.05, 0.1); box(m, 0.7, 0.12, 0.25, M.accent(), 0, 0.55, 0.2);
+  },
+  'squat-rack'(g) { powerRack(g, -1.4, 0); powerRack(g, 1.4, 0); },
+  smith(g) {
+    const s = sub(g, 0, 0);
+    box(s, 2.6, 0.04, 1.8, woodMat, 0, 0.02, 0);
+    for (const k of [-1, 1]) { box(s, 0.12, 2.6, 0.12, M.steel(), k * 1.05, 1.3, -0.5); box(s, 0.12, 2.6, 0.12, M.steel(), k * 1.05, 1.3, 0.5); cyl(s, 0.03, 2.4, M.chrome(), k * 0.95, 1.25, 0); }
+    box(s, 2.3, 0.12, 1.12, M.steel(), 0, 2.6, 0);
+    barbell(s, 0, 1.3, 0, 2.3);
+    flatBench(s, 0, 0.2, 0);
+  },
+  't-bar'(g) {
+    const l = sub(g, -0.9, 0); box(l, 0.6, 0.1, 2.0, M.steel(), 0, 0.05, 0); box(l, 0.6, 0.12, 0.45, M.dark(), 0, 0.2, 0.7);
+    const pad = box(l, 0.5, 0.12, 0.8, M.pad(), 0, 1.05, -0.05); pad.rotation.x = 0.7;
+    const arm = box(l, 0.08, 0.08, 1.7, M.chrome(), 0, 0.8, -0.3); arm.rotation.x = -0.35; cyl(l, 0.3, 0.07, M.plate(), 0, 0.6, -1.0, 'x', 28);
+    const lm = sub(g, 1.1, 0); box(lm, 0.3, 0.12, 0.3, M.dark(), 0, 0.06, -0.9); const bar = cyl(lm, 0.028, 2.0, M.chrome(), 0, 0.45, 0); bar.rotation.x = 1.2;
+    cyl(lm, 0.32, 0.07, M.plate(), 0, 0.88, 0.85, 'z', 28); box(lm, 0.5, 0.04, 0.12, M.steel(), 0, 0.88, 0.95);
+  },
+  platform(g) { platform(g, -1.35, 0); platform(g, 1.35, 0); },
+  preacher(g) {
+    for (const x of [-0.8, 0.8]) {
+      const p = sub(g, x, 0); seat(p, 0, 0.35, 0, false, 0.55);
+      box(p, 0.1, 0.9, 0.1, M.steel(), 0, 0.45, -0.25); const pad = box(p, 0.6, 0.08, 0.45, M.pad(), 0, 0.95, -0.3); pad.rotation.x = 0.7;
+      box(p, 0.06, 0.06, 0.7, M.steel(), 0, 1.15, -0.55).rotation.y = Math.PI / 2;
+    }
+    const ez = sub(g, 0, -0.55); ez.position.y = 1.18; cyl(ez, 0.02, 1.2, M.chrome(), 0, 0, 0, 'x'); for (const k of [-1, 1]) cyl(ez, 0.2, 0.05, M.plate(), k * 0.5, 0, 0, 'x', 24);
+  },
+  'arms-rack'(g) {
+    const r = sub(g, 0, -0.3);
+    for (const k of [-1.4, 1.4]) box(r, 0.1, 1.6, 0.3, M.steel(), k, 0.8, 0);
+    for (let i = 0; i < 5; i++) {
+      const y = 0.4 + i * 0.28;
+      const b = sub(r, 0, 0); b.position.y = y;
+      cyl(b, 0.02, 2.6, M.chrome(), 0, 0, 0.12, 'x');
+      for (const k of [-1, 1]) cyl(b, 0.09 + i * 0.012, 0.08, i % 2 ? M.plate() : M.accent(), k * 1.15, 0, 0.12, 'x', 20);
+    }
+    flatBench(g, 0, 1.2, Math.PI / 2);
+  },
+  'leg-press'(g) { legPress(g, 0, 0); },
+  'hack-squat'(g) { hackSquat(g, 0, 0); },
+  'leg-extension'(g) { legMachine(g, 0, 0, 'ext'); },
+  'leg-curl'(g) { legMachine(g, 0, 0, 'curl'); },
+  'hip-machine'(g) { legMachine(g, -0.9, 0, 'hip'); legMachine(g, 0.9, 0, 'hip'); },
+  'back-extension'(g) {
+    const r = sub(g, -0.8, 0); box(r, 0.6, 0.08, 1.5, M.steel(), 0, 0.04, 0);
+    const f = box(r, 0.12, 1.1, 0.12, M.steel(), 0, 0.5, 0.2); f.rotation.x = -0.6;
+    const pad = box(r, 0.5, 0.1, 0.4, M.pad(), 0, 0.95, -0.05); pad.rotation.x = 0.75; box(r, 0.4, 0.1, 0.12, M.pad(), 0, 0.3, 0.55);
+    const h = sub(g, 1.0, 0); box(h, 0.6, 0.9, 0.6, M.steel(), 0, 0.45, 0); box(h, 0.6, 0.1, 0.9, M.pad(), 0, 0.95, 0); cyl(h, 0.06, 0.5, M.pad(), 0, 0.5, 0.7, 'x');
+  },
+  'chest-press'(g) { chestPress(g, 0, 0); },
+  'pec-deck'(g) { chestPress(g, -0.9, 0, true); flatBench(g, 1.1, 0.2); dumbbell(g, 1.4, 0.07, 1.0); },
+  dip(g) {
+    const d = sub(g, -0.8, 0);
+    for (const k of [-0.28, 0.28]) { cyl(d, 0.03, 0.9, M.chrome(), k, 1.25, 0, 'z'); box(d, 0.08, 1.25, 0.08, M.steel(), k, 0.62, 0.4); box(d, 0.08, 1.25, 0.08, M.steel(), k, 0.62, -0.4); }
+    box(d, 1.0, 0.05, 1.2, M.rubber(), 0, 0.025, 0);
+    const a = sub(g, 1.0, 0); stack(a, 0, -0.6, 2.0); box(a, 0.5, 0.1, 0.35, M.pad(), 0, 0.9, 0.1);
+    for (const k of [-1, 1]) cyl(a, 0.025, 0.5, M.chrome(), k * 0.3, 1.35, 0.15, 'z');
   },
   pullup(g) {
-    for (const k of [-0.9, 0.9]) box(g, 0.12, 2.7, 0.12, C.steel, k, 1.35, 0);
-    cyl(g, 0.032, 2.0, C.chrome, 0, 2.55, 0, 'x');
-    box(g, 2.0, 0.08, 1.4, C.rubber, 0, 0.04, 0.3);
-    for (const k of [-0.28, 0.28]) cyl(g, 0.032, 0.9, C.chrome, k, 1.25, 0.6, 'z');
-    for (const k of [-0.28, 0.28]) box(g, 0.08, 1.25, 0.08, C.steel, k, 0.62, 1.0);
+    for (const k of [-1.2, 1.2]) box(g, 0.12, 2.8, 0.12, M.steel(), k, 1.4, 0);
+    cyl(g, 0.032, 2.5, M.chrome(), 0, 2.6, 0, 'x');
+    box(g, 2.6, 0.06, 1.6, M.rubber(), 0, 0.03, 0.3);
+    for (const k of [-0.5, 0.5]) { box(g, 0.08, 0.08, 0.5, M.steel(), k, 2.7, -0.2); cyl(g, 0.025, 0.3, M.chrome(), k, 2.62, -0.4, 'y'); }
+  },
+  'lat-pulldown'(g) { latPulldown(g, 0, 0); },
+  'seated-row'(g) { latPulldown(g, 0, -0.3, true); },
+  'cable-crossover'(g) { cableCrossover(g, 0, 0); },
+  'cable-arms'(g) {
+    const c = cableTower(g, -0.6, 0, 2.3); const rope = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.02, 8, 16, Math.PI), mat(0x222222)); rope.position.set(0, 1.2, 0.12); rope.rotation.z = Math.PI; c.add(rope);
+    const c2 = cableTower(g, 0.8, 0, 2.3); cyl(c2, 0.015, 0.4, M.chrome(), 0, 0.7, 0.15, 'x');
+  },
+  abs(g) {
+    const a = sub(g, 0, 0); stack(a, 0, -0.75, 1.6); seat(a, 0, 0.25, Math.PI);
+    box(a, 0.55, 0.12, 0.3, M.pad(), 0, 1.35, -0.2); for (const k of [-1, 1]) box(a, 0.06, 0.06, 0.5, M.steel(), k * 0.3, 1.45, -0.3);
+  },
+  cables(g) {
+    const c = sub(g, 0, 0);
+    for (const k of [-0.9, 0.9]) { box(c, 0.14, 2.4, 0.14, M.steel(), k, 1.2, 0); box(c, 0.45, 1.2, 0.26, M.dark(), k, 0.62, -0.25); ball(c, 0.07, M.accent(), k, 1.4, 0.12); }
+    box(c, 1.95, 0.14, 0.14, M.steel(), 0, 2.4, 0); cyl(c, 0.03, 1.4, M.chrome(), 0, 2.2, 0.15, 'x');
+    box(c, 2.6, 0.03, 1.6, M.rubber(), 0, 0.015, 0.5);
+  },
+  dumbbells(g) {
+    rack(g, 4.0, [0.5, 0.85], () => {
+      for (let i = 0; i < 9; i++) { const x = -1.7 + i * 0.42, s = 0.75 + i * 0.09; dumbbell(g, x, 0.57 + 0.065 * s, 0.08, s); dumbbell(g, x, 0.91 + 0.05 * s, -0.05, s * 0.7); }
+    });
+    flatBench(g, -1, 1.6, Math.PI / 2, 0.3); flatBench(g, 1, 1.6, Math.PI / 2);
+  },
+  kettlebells(g) {
+    rack(g, 2.8, [0.02, 0.35]);
+    [0x3f6db3, 0xe0b23f, 0x4f9a5e, 0xe8461f, 0x22262b, 0x3f6db3].forEach((c, i) => kettlebell(g, -1.1 + i * 0.44, 0.38, 0, c, 0.75 + i * 0.1));
+    ball(g, 0.2, 0x7a5c3e, -0.6, 0.2, 0.9); ball(g, 0.24, 0x8b6a47, 0.1, 0.24, 1.0); ball(g, 0.18, 0x6e5235, 0.7, 0.18, 0.85);
+    const tb = sub(g, 0.2, 1.9); const hex = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.03, 6, 6), M.steel()); hex.rotation.x = Math.PI / 2; hex.position.y = 0.2; tb.add(hex);
   },
   turf(g) {
-    box(g, 2.2, 0.03, 8, C.turf, 0, 0.015, 0);
-    for (let i = -3; i <= 3; i += 1.5) box(g, 2.2, 0.035, 0.05, C.white, 0, 0.02, i);
+    box(g, 2.4, 0.03, 9, mat(0x3f8a45, { roughness: 1 }), 0, 0.015, 0);
+    for (let i = -4; i <= 4; i += 1.5) box(g, 2.4, 0.035, 0.05, 0xf2f3f5, 0, 0.02, i);
     const sled = sub(g, 0, 2.5);
-    box(sled, 0.8, 0.12, 0.9, C.dark, 0, 0.08, 0);
-    for (const k of [-0.25, 0.25]) { const p = box(sled, 0.06, 1.0, 0.06, C.steel, k, 0.6, 0.35); p.rotation.x = -0.25; }
-    cyl(sled, 0.3, 0.08, C.plate, 0, 0.25, 0);
-    const lm = cyl(g, 0.028, 2.0, C.chrome, 0.6, 0.45, -2.2); lm.rotation.x = 1.15;
-    cyl(g, 0.3, 0.07, C.plate, 0.6, 0.85, -3.0, 'z');
-    const rope = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.04, 8, 30, Math.PI), mat(0x2b2b2b)); rope.rotation.x = -Math.PI / 2; rope.position.set(-0.4, 0.04, -0.5); g.add(rope);
+    box(sled, 0.8, 0.12, 0.9, M.dark(), 0, 0.08, 0);
+    for (const k of [-0.25, 0.25]) { const p = box(sled, 0.06, 1.0, 0.06, M.steel(), k, 0.6, 0.35); p.rotation.x = -0.25; }
+    cyl(sled, 0.3, 0.08, M.plate(), 0, 0.25, 0);
+    const lm = cyl(g, 0.028, 2.0, M.chrome(), 0.6, 0.45, -2.2); lm.rotation.x = 1.15;
+    cyl(g, 0.3, 0.07, M.plate(), 0.6, 0.85, -3.0, 'z');
+    box(g, 0.3, 0.3, 0.3, M.dark(), -0.5, 0.15, -4.2);
+    for (const k of [-0.15, 0.15]) { const r = cyl(g, 0.03, 3.2, mat(0x2b2b2b, { roughness: 0.9 }), -0.5 + k, 0.04, -2.5, 'z'); r.rotation.y = k * 0.3; }
   },
   mats(g) {
-    for (const [x, z] of [[-1.6, -0.8], [-0.4, -0.8], [0.8, -0.8], [-1.6, 1.4], [-0.4, 1.4]]) box(g, 1.0, 0.04, 2.0, C.mat, x, 0.02, z);
+    for (const [x, z] of [[-1.6, -0.8], [-0.4, -0.8], [0.8, -0.8], [-1.6, 1.4], [-0.4, 1.4]]) box(g, 1.0, 0.04, 2.0, mat(0x3f6db3, { roughness: 0.9 }), x, 0.02, z);
     ball(g, 0.36, 0x9bb7e0, 2.2, 0.36, -0.6); ball(g, 0.3, 0xe0b5a5, 2.3, 0.3, 0.4);
-    box(g, 0.6, 0.6, 0.6, C.wood, 1.0, 0.3, 1.4); box(g, 0.5, 0.45, 0.5, C.wood, 1.8, 0.22, 1.5);
+    box(g, 0.6, 0.6, 0.6, woodMat, 1.0, 0.3, 1.4); box(g, 0.5, 0.45, 0.5, woodMat, 1.8, 0.22, 1.5);
     for (let i = 0; i < 3; i++) cyl(g, 0.08, 0.6, 0x3a3a3a, 2.6, 0.08, 1.2 + i * 0.25, 'x');
-    const band = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.02, 8, 24), mat(C.green));
-    band.rotation.x = Math.PI / 2; band.position.set(-0.4, 0.06, 1.4); g.add(band);
   },
 };
 
-// ---------- the room: walls, glass entrance, reception, signage ----------
+// People training around the gym (station id -> list of [x, z, rotY, motion, dy, shirt, extra])
+const SKINS = [0xc98e66, 0x8d5a3b, 0xe2b48f, 0x6b4430, 0xd9a77e];
+const SHIRTS = [0x2f6fd6, 0x1f9d55, 0x22262b, 0x8b4fd6, 0xf2f3f5, 0x0f9aa8, 0xd93a63];
+const PEOPLE = {
+  treadmills: [[-0.8, 0.15, Math.PI, 'run', 0.08], [2.4, 0.15, Math.PI, 'walk', 0.08]],
+  bikes: [[-1.8, 0.32, Math.PI, 'cycle', 0.03]],
+  rowers: [[-0.6, 0.6, Math.PI, 'rowing', 0.08]],
+  'squat-rack': [[-1.4, 1.8, 0, 'squat', 0]],
+  dumbbells: [[0.2, 0.9, 0, 'curl', 0]],
+  'lat-pulldown': [[0, 0.5, Math.PI, 'pulldown', 0.03]],
+  turf: [[-0.5, -2.2, Math.PI, 'waves', 0]],
+  mats: [[-1.6, -0.9, Math.PI / 2, 'plank', 0.04]],
+  'shoulder-press': [[1.2, 1.1, 0, 'raise', 0]],
+  'cable-arms': [[-0.6, 0.65, Math.PI, 'pushdown', 0]],
+};
+let personSeed = 0;
+function addPerson(parent, x, z, ry, motion, dy = 0) {
+  const i = personSeed++;
+  const rig = makeRig({ shirt: SHIRTS[i % SHIRTS.length], skin: SKINS[i % SKINS.length], shorts: i % 3 ? 0x22262b : 0x3a4250, hair: i % 2 ? 0x2b211c : 0x5a3b22 });
+  rig.holder.position.set(x, 0, z); rig.holder.rotation.y = ry;
+  parent.add(rig.holder);
+  people.push({ rig, motion, phase: i * 0.37, dy });
+  return rig;
+}
+
+// ---------- the room ----------
 function plant(x, z, s = 1) {
   const g = sub(scene, x, z);
   cyl(g, 0.28 * s, 0.5 * s, 0xf2f2f2, 0, 0.25 * s, 0);
-  for (const [dx, dy, dz, r] of [[0, 0.9, 0, 0.42], [0.2, 1.2, 0.1, 0.3], [-0.2, 1.15, -0.1, 0.32], [0, 1.45, 0, 0.25]]) ball(g, r * s, 0x3f7f4a, dx * s, dy * s, dz * s);
+  for (const [dx, dy, dz, r] of [[0, 0.9, 0, 0.42], [0.2, 1.2, 0.1, 0.3], [-0.2, 1.15, -0.1, 0.32], [0, 1.45, 0, 0.25]]) ball(g, r * s, mat(0x3f7f4a, { roughness: 0.9 }), dx * s, dy * s, dz * s);
 }
-function hangingSign(text, x, z, ry = 0) {
-  const tex = textTexture(text, { w: 1024, h: 200, bg: '#111418', color: '#ffffff', font: 'bold 110px system-ui, sans-serif' });
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(5, 0.98), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
-  m.position.set(x, 5.6, z); m.rotation.y = ry; scene.add(m);
-  for (const k of [-2, 2]) {
-    const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 1.4), mat(0x555555));
-    wire.position.set(x + Math.cos(ry) * k, 6.8, z - Math.sin(ry) * k); scene.add(wire);
-  }
+function hangingSign(text, x, z, color) {
+  const tex = textTexture(text.toUpperCase(), { w: 1024, h: 200, bg: color, color: '#ffffff', font: '800 104px Inter, system-ui, sans-serif', radius: 30 });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 1.1), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, toneMapped: false }));
+  m.position.set(x, 5.9, z); scene.add(m);
+  for (const k of [-2.4, 2.4]) { const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.5), mat(0x555555)); wire.position.set(x + k, 7.2, z); ceilingWires.push(wire); scene.add(wire); }
+}
+const ceilingWires = [];
+function wallText(text, x, y, z, w, h, color, ry = 0) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: textTexture(text, { w: 2048, h: Math.round(2048 * h / w), color, font: `900 ${Math.round(2048 * h / w * 0.7)}px Inter, system-ui, sans-serif` }), transparent: true }));
+  m.position.set(x, y, z); m.rotation.y = ry; scene.add(m); return m;
 }
 function buildRoom() {
-  const W = ROOM.w, D = ROOM.d;
-  // floors: light base, black rubber in free weights, grey under cardio
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), mat(0xd9dce1, { roughness: 0.9, metalness: 0 }));
-  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
-  const zone = (w, d, x, z, color) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat(color, { roughness: 0.95, metalness: 0 }));
-    m.rotation.x = -Math.PI / 2; m.position.set(x, 0.006, z); m.receiveShadow = true; scene.add(m);
-  };
-  zone(32, 17, -13, -12.5, 0x2c3036);   // free weights rubber
-  zone(14, 24, 21, 5, 0xc7ccd3);        // cardio
-  zone(15, 21, 12, -7, 0xcfd3d9);       // machines
-  // outside pavement in front of the entrance
-  const out = new THREE.Mesh(new THREE.PlaneGeometry(40, 20), mat(0xbfc3c8, { roughness: 1, metalness: 0 }));
-  out.rotation.x = -Math.PI / 2; out.position.set(0, -0.01, D / 2 + 10); out.receiveShadow = true; scene.add(out);
+  const W = ROOM.w, Dp = ROOM.d;
+  woodMat = new THREE.MeshStandardMaterial({ map: woodTexture(), roughness: 0.6 });
+  // floors
+  const concrete = new THREE.MeshStandardMaterial({ map: noiseTexture({ base: '#b9bec6', speck: ['#a9afb8', '#c9cdd3', '#9ea4ad'], n: 14000, repeat: 6 }), roughness: 0.55, metalness: 0.05 });
+  plane(W, Dp, concrete, 0, 0, 0);
+  const rubber = new THREE.MeshStandardMaterial({ map: noiseTexture({ base: '#2a2d32', speck: ['#3a3e45', '#1f2125', '#4a4e55'], tiles: 4, seam: '#1b1d20', n: 20000 }), roughness: 0.95 });
+  for (const [z, [x0, x1, z0, z1]] of Object.entries(ZONE_AREAS)) {
+    const col = zoneOf(z);
+    const m = z === 'Cardio' || z === 'Core & Functional' ? mat(z === 'Cardio' ? 0xa9b0b9 : 0xc2b8a8, { roughness: 0.9, metalness: 0 }) : rubber.clone();
+    if (m.map) { m.map = m.map.clone(); m.map.needsUpdate = true; m.map.repeat.set((x1 - x0) / 2, (z1 - z0) / 2); }
+    plane(x1 - x0 - 0.3, z1 - z0 - 0.3, m, (x0 + x1) / 2, 0.006, (z0 + z1) / 2);
+    // painted zone border stripe
+    const s = mat(col.hex, { roughness: 0.7 });
+    for (const [w, d, x, zz] of [[x1 - x0, 0.14, (x0 + x1) / 2, z1 - 0.1], [x1 - x0, 0.14, (x0 + x1) / 2, z0 + 0.1], [0.14, z1 - z0, x0 + 0.1, (z0 + z1) / 2], [0.14, z1 - z0, x1 - 0.1, (z0 + z1) / 2]]) plane(w, d, s, x, 0.012, zz);
+  }
+  plane(12, 9, mat(0x3f8a45, { roughness: 1 }), -34, 0.006, 22);
 
-  const wallMat = mat(0xf6f7f8, { roughness: 1, metalness: 0 });
-  const wall = (w, h, d, x, y, z, m = wallMat) => {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); mesh.position.set(x, y, z); mesh.receiveShadow = true; scene.add(mesh); return mesh;
-  };
-  wall(W, 7, 0.3, 0, 3.5, -D / 2);       // back
-  wall(0.3, 7, D, -W / 2, 3.5, 0);        // left
-  wall(0.3, 1.2, D, W / 2, 0.6, 0);       // right: low wall + windows
-  for (let z = -18; z <= 18; z += 6) {
-    const win = new THREE.Mesh(new THREE.BoxGeometry(0.08, 4.6, 5.2), mat(0xbfdcf2, { emissive: 0xbfdcf2, emissiveIntensity: 0.35, roughness: 0.1, metalness: 0.2 }));
-    win.position.set(W / 2, 3.6, z); scene.add(win);
+  const wallMat = mat(0xf3f4f6, { roughness: 0.95, metalness: 0 });
+  const wall = (w, h, d, x, y, z, m = wallMat) => { const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); mesh.position.set(x, y, z); mesh.receiveShadow = true; scene.add(mesh); return mesh; };
+  wall(W, 7.5, 0.3, 0, 3.75, -Dp / 2);
+  wall(0.3, 7.5, Dp, -W / 2, 3.75, 0);
+  wall(0.3, 1.0, Dp, W / 2, 0.5, 0);
+  wall(0.3, 1.2, Dp, W / 2, 6.9, 0);
+  for (let z = -27; z <= 27; z += 6) wall(0.4, 5.3, 0.25, W / 2, 3.65, z + 3, M.dark());
+  const glassMat = mat(0xbfdcf2, { emissive: 0xd8ecfb, emissiveIntensity: 0.55, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.85 });
+  wall(0.08, 5.3, Dp, W / 2, 3.65, 0, glassMat);
+  // dark base trim + zone accent paint on the back wall
+  wall(W, 0.3, 0.32, 0, 0.15, -Dp / 2 + 0.02, M.dark());
+  for (const [z, [x0, x1]] of Object.entries(ZONE_AREAS)) {
+    if (z === 'Cardio' || z === 'Arms' || z === 'Core & Functional') continue;
+    wall(x1 - x0 - 0.4, 2.6, 0.05, (x0 + x1) / 2, 5.6, -Dp / 2 + 0.18, mat(zoneOf(z).hex, { roughness: 0.8 }));
+    wallText(z.toUpperCase(), (x0 + x1) / 2, 5.6, -Dp / 2 + 0.22, Math.min(x1 - x0 - 2, 14), 2.2, '#ffffff');
   }
-  wall(0.3, 1.0, D, W / 2, 6.5, 0);
-  // Front facade (glass wall, fascia, doors). Shown for the walk-in, then hidden like a
-  // dollhouse cut-away so it never blocks the view of stations near the entrance.
+  // mirrors along the back wall
+  const mirror = mat(0xdfe7ee, { metalness: 1, roughness: 0.04 });
+  for (const [x0, x1] of [[-41, -9], [-7, 15], [17, 30]]) wall(x1 - x0, 2.6, 0.05, (x0 + x1) / 2, 2.15, -Dp / 2 + 0.2, mirror);
+  // left wall graphics
+  wall(0.05, 2.4, 34, -W / 2 + 0.18, 5.6, -13, mat(ZONES.Legs.hex, { roughness: 0.8 }));
+  wallText('TRAIN SMART · TRAIN SAFE', -W / 2 + 0.22, 5.6, -13, 30, 1.5, '#ffffff', Math.PI / 2);
+  wall(0.05, 2.4, 20, -W / 2 + 0.18, 5.6, 7, mat(ZONES.Arms.hex, { roughness: 0.8 }));
+  wallText('ARMS', -W / 2 + 0.22, 5.6, 7, 10, 2, '#ffffff', Math.PI / 2);
+
+  // reception, lockers, plants, water
+  const desk = sub(scene, 14, 24.5);
+  box(desk, 5, 1.1, 1.1, 0xf7f7f8, 0, 0.55, 0);
+  box(desk, 5.2, 0.08, 1.3, M.accent(), 0, 1.12, 0);
+  box(desk, 5.0, 0.06, 0.06, mat(0xffffff, { emissive: 0xffffff, emissiveIntensity: 1 }), 0, 0.05, 0.56);
+  screen(desk, 0.6, 0.4, -1.2, 1.4, -0.2);
+  const rs = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.55), new THREE.MeshBasicMaterial({ map: textTexture('RECEPTION', { w: 1024, h: 160, color: '#111418', font: '800 100px Inter, system-ui, sans-serif' }), transparent: true }));
+  rs.position.set(0, 0.62, 0.56); desk.add(rs);
+  addPerson(desk, 0.6, -0.9, 0, 'wave');
+  wall(7, 4, 0.2, 14, 2, 27.2, mat(0x2b3038, { roughness: 0.8 }));
+  wallText('WELCOME', 14, 3.0, 27.08, 6, 1.0, '#ffffff', Math.PI);
+  for (const [x, z, s] of [[-4, 27.8, 1], [4.5, 27.8, 1], [40.5, -28.3, 1.3], [-40.4, 28.3, 1.3], [40.5, 28.3, 1.2], [-40.4, -28.3, 1.2], [30.5, 14, 1]]) plant(x, z, s);
+  const wf = sub(scene, -6.5, 28.6); box(wf, 0.6, 1.0, 0.4, M.chrome(), 0, 0.5, 0); box(wf, 0.5, 0.06, 0.35, 0xf2f3f5, 0, 1.03, 0);
+  for (let i = 0; i < 10; i++) box(scene, 0.75, 2.1, 0.55, i % 2 ? 0x8796a5 : 0x7a8a9b, -9.5 - i * 0.78, 1.05, 29.4);
+  wallText('LOCKERS', -13, 2.6, 29.1, 4, 0.6, '#111418', Math.PI);
+
+  // hanging zone signs
+  for (const [z, [x0, x1, z0, z1]] of Object.entries(ZONE_AREAS)) hangingSign(z, (x0 + x1) / 2, (z0 + z1) / 2 + (z === 'Cardio' ? 0 : 2), zoneOf(z).color);
+  hangingSign('Turf', -34, 18, ZONES['Core & Functional'].color);
+
+  // Ceiling + light panels: part of the walk-in, hidden afterwards like a dollhouse cut-away.
+  ceiling = new THREE.Group(); scene.add(ceiling);
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W, Dp), mat(0x2b2f36, { roughness: 1, side: THREE.DoubleSide }));
+  ceil.rotation.x = Math.PI / 2; ceil.position.y = 7.5; ceiling.add(ceil);
+  for (let x = -36; x <= 36; x += 9) for (let z = -24; z <= 24; z += 8) box(ceiling, 5, 0.06, 0.5, mat(0xffffff, { emissive: 0xfff4e0, emissiveIntensity: 1.6 }), x, 7.4, z);
+  for (let x = -40; x <= 40; x += 10) box(ceiling, 0.25, 0.4, Dp, M.dark(), x, 7.2, 0);
+  ceilingWires.forEach((w) => ceiling.attach(w));
+
+  // Front facade (glass, cladding, sign, sliding doors) — hidden after the walk-in.
   facade = new THREE.Group(); scene.add(facade);
-  const glass = mat(0xcfe6f5, { transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.1 });
+  const glass = mat(0xcfe6f5, { transparent: true, opacity: 0.18, roughness: 0.02, metalness: 0.2 });
+  for (const k of [-1, 1]) { const g = new THREE.Mesh(new THREE.BoxGeometry(W / 2 - 3, 5.2, 0.1), glass); g.position.set(k * (W / 4 + 1.5), 2.6, Dp / 2); facade.add(g); }
+  box(facade, W, 2.3, 0.4, mat(0x24282f, { roughness: 0.7 }), 0, 6.35, Dp / 2);
+  for (let x = -40; x <= 40; x += 5) if (Math.abs(x) > 3) box(facade, 0.14, 5.2, 0.18, M.steel(), x, 2.6, Dp / 2);
+  for (const k of [-1, 1]) box(facade, 0.2, 4.8, 0.22, M.steel(), k * 3, 2.4, Dp / 2);
+  box(facade, 6.2, 0.2, 0.22, M.steel(), 0, 4.8, Dp / 2);
+  box(facade, 8, 0.15, 2.4, mat(0x1b1e23), 0, 5.2, Dp / 2 + 1.2); // canopy
+  for (let x = -3; x <= 3; x += 1.5) box(facade, 0.5, 0.02, 0.2, mat(0xffffff, { emissive: 0xffe9c4, emissiveIntensity: 3 }), x, 5.12, Dp / 2 + 1.4);
+  const signTex = textTexture('SAFESWAP GYM', { w: 2048, h: 300, color: '#ffffff', accent: '#ff6a3d', font: '900 210px Inter, system-ui, sans-serif' });
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(13, 1.9), new THREE.MeshBasicMaterial({ map: signTex, transparent: true, toneMapped: false }));
+  sign.position.set(0, 6.4, Dp / 2 + 0.22); facade.add(sign);
+  const open = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.55), new THREE.MeshBasicMaterial({ map: textTexture('OPEN 24/7', { w: 512, h: 170, bg: '#1f9d55', color: '#ffffff', font: '800 90px Inter, system-ui, sans-serif', radius: 30 }), toneMapped: false, transparent: true }));
+  open.position.set(4.3, 2.6, Dp / 2 + 0.08); facade.add(open);
   for (const k of [-1, 1]) {
-    const g = new THREE.Mesh(new THREE.BoxGeometry(W / 2 - 2.5, 6, 0.1), glass);
-    g.position.set(k * (W / 4 + 1.25), 3, D / 2); facade.add(g);
-  }
-  // storefront frame: fascia band, mullions and the door frame
-  box(facade, W, 0.9, 0.2, 0x111418, 0, 6.45, D / 2);
-  for (let x = -27.5; x <= 27.5; x += 5) if (Math.abs(x) > 3) box(facade, 0.12, 6, 0.14, C.steel, x, 3, D / 2);
-  for (const k of [-1, 1]) box(facade, 0.16, 4.6, 0.18, C.steel, k * 2.5, 2.3, D / 2);
-  box(facade, 5.2, 0.16, 0.18, C.steel, 0, 4.6, D / 2);
-  const entry = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 0.85), new THREE.MeshBasicMaterial({ map: textTexture('SAFESWAP GYM', { w: 1024, h: 210, color: '#ffffff', accent: '#e8461f', font: 'bold 120px system-ui, sans-serif' }), transparent: true }));
-  entry.position.set(0, 6.45, D / 2 + 0.12); facade.add(entry);
-  for (const k of [-1, 1]) {
-    const d = new THREE.Mesh(new THREE.BoxGeometry(2.45, 4.4, 0.06), mat(0xcfe6f5, { transparent: true, opacity: 0.3, roughness: 0.05 }));
-    d.position.set(k * 1.25, 2.2, D / 2); facade.add(d);
-    const handle = box(facade, 0.05, 1.2, 0.08, C.chrome, k * 0.2, 1.2, D / 2 + 0.05);
+    const d = new THREE.Mesh(new THREE.BoxGeometry(2.95, 4.6, 0.06), mat(0xcfe6f5, { transparent: true, opacity: 0.28, roughness: 0.02 }));
+    d.position.set(k * 1.5, 2.3, Dp / 2); facade.add(d);
+    const handle = box(facade, 0.05, 1.3, 0.08, M.chrome(), k * 0.25, 1.2, Dp / 2 + 0.06);
     doors.push({ mesh: d, side: k, handle });
   }
-  // welcome mat
-  const wm = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 2), mat(0x2b2f35, { roughness: 1, metalness: 0 }));
-  wm.rotation.x = -Math.PI / 2; wm.position.set(0, 0.01, D / 2 - 1.4); scene.add(wm);
-
-  // back wall: mirrors + logo
-  const mirror = new THREE.Mesh(new THREE.BoxGeometry(30, 2.4, 0.05), mat(0xd8e1e8, { metalness: 0.9, roughness: 0.08 }));
-  mirror.position.set(-13, 1.9, -D / 2 + 0.18); scene.add(mirror);
-  const logo = new THREE.Mesh(new THREE.PlaneGeometry(16, 2.4), new THREE.MeshBasicMaterial({ map: textTexture('SAFESWAP GYM', { w: 2048, h: 300, color: '#111418', accent: '#e8461f', font: 'bold 220px system-ui, sans-serif' }), transparent: true }));
-  logo.position.set(10, 4.6, -D / 2 + 0.17); scene.add(logo);
-  const stripe = new THREE.Mesh(new THREE.BoxGeometry(W, 0.14, 0.04), mat(C.accent)); stripe.position.set(0, 3.4, -D / 2 + 0.17); scene.add(stripe);
-  const motto = new THREE.Mesh(new THREE.PlaneGeometry(18, 1.6), new THREE.MeshBasicMaterial({ map: textTexture('TRAIN SMART · TRAIN SAFE', { w: 2048, h: 180, color: '#8a919b', font: 'bold 120px system-ui, sans-serif' }), transparent: true }));
-  motto.position.set(-W / 2 + 0.17, 4.6, 2); motto.rotation.y = Math.PI / 2; scene.add(motto);
-
-  // reception desk + screen + plants near the door
-  const desk = sub(scene, 8, 17);
-  box(desk, 4.2, 1.1, 1.0, C.white, 0, 0.55, 0);
-  box(desk, 4.4, 0.08, 1.2, C.accent, 0, 1.12, 0);
-  box(desk, 0.6, 0.4, 0.05, C.screen, -0.8, 1.4, -0.2, { emissive: 0x2a6cb3, emissiveIntensity: 0.4 });
-  const rs = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.6), new THREE.MeshBasicMaterial({ map: textTexture('RECEPTION', { w: 1024, h: 170, color: '#111418', font: 'bold 110px system-ui, sans-serif' }), transparent: true }));
-  rs.position.set(0, 0.6, 0.52); desk.add(rs);
-  plant(-4, 20.2); plant(4.2, 20.2); plant(28.5, -20.5, 1.2); plant(-28.4, 20.5, 1.2); plant(28.5, 20.5);
-  // water fountain + lockers on the left of the entrance
-  const wf = sub(scene, -6, 20.6); box(wf, 0.6, 1.0, 0.4, C.chrome, 0, 0.5, 0); box(wf, 0.5, 0.06, 0.35, C.white, 0, 1.03, 0);
-  for (let i = 0; i < 6; i++) box(scene, 0.75, 2.0, 0.55, i % 2 ? 0x9aa6b2 : 0x8796a5, -10.5 - i * 0.78, 1.0, 21.4);
-
-  // hanging zone signs, readable from the entrance
-  hangingSign('CARDIO', 21, 8);
-  hangingSign('FREE WEIGHTS', -11.5, -10);
-  hangingSign('MACHINES', 12, -11);
-  hangingSign('FUNCTIONAL', -17, 8);
+  const wm = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 2.2), mat(0x24282f, { roughness: 1, metalness: 0 }));
+  wm.rotation.x = -Math.PI / 2; wm.position.set(0, 0.01, Dp / 2 - 1.5); scene.add(wm);
+}
+function buildOutside() {
+  const Dp = ROOM.d;
+  plane(140, 12, mat(0xa7abb2, { roughness: 1 }), 0, -0.01, Dp / 2 + 6);       // sidewalk
+  plane(140, 16, mat(0x2c2f35, { roughness: 1 }), 0, -0.02, Dp / 2 + 20);      // street
+  for (let x = -66; x <= 66; x += 6) plane(3, 0.25, mat(0xe8e2c8, { roughness: 1 }), x, -0.01, Dp / 2 + 20);
+  box(scene, 140, 0.15, 0.3, 0x8a8f96, 0, 0.07, Dp / 2 + 12);
+  plane(140, 40, mat(0x3c5a3a, { roughness: 1 }), 0, -0.03, Dp / 2 + 48);
+  for (const x of [-12, 12, -34, 34]) { // street lamps
+    const l = sub(scene, x, Dp / 2 + 10.5);
+    cyl(l, 0.08, 5.5, M.dark(), 0, 2.75, 0); box(l, 0.12, 0.12, 1.2, M.dark(), 0, 5.45, -0.55);
+    box(l, 0.5, 0.12, 0.35, mat(0xffffff, { emissive: 0xffd9a0, emissiveIntensity: 3 }), 0, 5.35, -1.1);
+  }
+  for (const x of [-24, -46, 24, 46, -58, 58]) { // trees
+    const t = sub(scene, x, Dp / 2 + 8);
+    cyl(t, 0.18, 2.4, 0x5a4030, 0, 1.2, 0);
+    for (const [dx, dy, r] of [[0, 3.3, 1.5], [0.7, 2.8, 1.0], [-0.7, 2.9, 1.1]]) {
+      const f = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), mat(0x3d6b3f, { roughness: 1, flatShading: true })); f.position.set(dx, dy, 0); f.castShadow = true; t.add(f);
+    }
+  }
+  // neighbouring buildings
+  for (const [x, w, h, c] of [[-62, 36, 12, 0x5a5f6b], [62, 36, 10, 0x6b6560]]) box(scene, w, h, Dp, c, x, h / 2, 0);
 }
 
 function buildStations() {
   for (const st of state.stations) {
-    const p = PLACES[st.id] || { x: 0, z: 0, rot: 0, r: 3 };
+    const p = PLACES[st.id] || { x: 0, z: 0 };
     const group = new THREE.Group();
     group.position.set(p.x, 0, p.z);
-    group.rotation.y = p.rot;
+    group.rotation.y = p.rot || 0;
     (BUILDERS[st.id] || BUILDERS.mats)(group);
+    for (const [x, z, ry, motion, dy] of PEOPLE[st.id] || []) addPerson(group, x, z, ry, motion, dy);
 
-    const pad = new THREE.Mesh(new THREE.CircleGeometry(p.r, 48),
-      new THREE.MeshBasicMaterial({ color: C.accent, transparent: true, opacity: 0, depthWrite: false }));
-    pad.rotation.x = -Math.PI / 2; pad.position.y = 0.02;
-    group.add(pad);
+    const r = p.r || (st.id === 'turf' ? 4.8 : 3.2);
+    const pad = new THREE.Mesh(new THREE.CircleGeometry(r, 48), new THREE.MeshBasicMaterial({ color: zoneOf(st.zone).hex, transparent: true, opacity: 0, depthWrite: false }));
+    pad.rotation.x = -Math.PI / 2; pad.position.y = 0.03; group.add(pad);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(r - 0.08, r, 64), new THREE.MeshBasicMaterial({ color: zoneOf(st.zone).hex, transparent: true, opacity: 0, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.035; group.add(ring);
 
     const el = document.createElement('div');
     el.className = 'label';
-    el.innerHTML = `${esc(st.name)}<span class="badge"></span>`;
+    el.style.setProperty('--zc', zoneOf(st.zone).color);
+    el.innerHTML = `<i></i>${esc(st.name)}<span class="badge"></span>`;
     el.addEventListener('click', () => onStationClick(st.id));
     el.addEventListener('pointerenter', () => setHover(st.id));
     el.addEventListener('pointerleave', () => setHover(null));
     const label = new CSS2DObject(el);
-    label.position.set(0, 3.1, 0);
+    label.position.set(0, 3.2, 0);
     group.add(label);
 
     group.traverse((o) => { o.userData.stationId = st.id; });
     scene.add(group);
-    stationObjects.set(st.id, { group, pad, label: el });
+    stationObjects.set(st.id, { group, pad, ring, label: el, zone: st.zone });
   }
   refreshHighlights();
 }
@@ -537,8 +719,7 @@ function buildStations() {
 // ---------- interaction ----------
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
-let hoverId = null;
-let downAt = null;
+let hoverId = null, downAt = null;
 
 function pick(e) {
   const r = renderer.domElement.getBoundingClientRect();
@@ -554,13 +735,13 @@ function onPointerMove(e) {
   const tip = $('#hoverTip');
   if (id) {
     const st = state.stations.find((s) => s.id === id);
-    tip.textContent = state.step === 0 ? `${st.name}: tap to see exercises` : st.name;
+    tip.innerHTML = `<b>${esc(st.name)}</b>${state.step === 0 ? `<br>${st.exerciseCount} exercises · tap to open` : ''}`;
     tip.style.left = e.clientX + 'px'; tip.style.top = e.clientY + 'px';
     tip.hidden = false;
   } else tip.hidden = true;
 }
 function onPointerUp(e) {
-  if (intro || !downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return; // drag, not tap
+  if (intro || !downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
   const id = pick(e);
   if (id) onStationClick(id);
 }
@@ -576,95 +757,128 @@ function refreshHighlights() {
   for (const [id, o] of stationObjects) {
     const selected = state.station?.id === id && state.step > 0 && state.step < 3;
     const isSwap = swaps[id] > 0;
-    o.pad.material.opacity = selected ? 0.3 : isSwap ? 0.22 : hoverId === id ? 0.18 : 0;
+    const zoneOn = state.step === 0 && state.zone !== 'All' && o.zone === state.zone;
+    o.pad.material.opacity = selected ? 0.3 : isSwap ? 0.22 : hoverId === id ? 0.2 : zoneOn ? 0.1 : 0;
+    o.ring.material.opacity = selected || isSwap || hoverId === id ? 0.9 : zoneOn ? 0.5 : 0;
     o.label.classList.toggle('selected', selected);
     o.label.classList.toggle('hover', hoverId === id && !selected && !isSwap);
     o.label.classList.toggle('has-swap', isSwap);
-    o.label.classList.toggle('dim', (state.step === 3 && !isSwap) || (state.step > 0 && state.step < 3 && !selected));
+    o.label.classList.toggle('dim', (state.step === 3 && !isSwap) || (state.step > 0 && state.step < 3 && !selected) || (state.step === 0 && state.zone !== 'All' && !zoneOn));
     o.label.querySelector('.badge').textContent = isSwap ? `${swaps[id]} swap${swaps[id] > 1 ? 's' : ''}` : '';
   }
 }
 
 // ---------- camera ----------
-let flight = null;
-let intro = null;
+let flight = null, intro = null;
 function overviewPose() {
   const w = container.clientWidth || innerWidth, h = container.clientHeight || innerHeight;
-  const k = Math.min(1.8, Math.max(0.95, 1.6 / (w / h)));
-  return { pos: new THREE.Vector3(0, 30 * k, 33 * k), target: new THREE.Vector3(0, 0, -2) };
+  // distance that fits the 88 m-wide floor horizontally (and the 62 m depth vertically)
+  const half = Math.tan((camera.fov * Math.PI) / 360);
+  const dist = Math.max(46 / (half * (w / h)), 34 / half) * 0.98;
+  const dir = new THREE.Vector3(0, 0.72, 0.69).normalize();
+  return { pos: dir.multiplyScalar(dist).add(new THREE.Vector3(0, 0, -1)), target: new THREE.Vector3(0, 0, -1) };
 }
 function setOverview() { const o = overviewPose(); flyTo(o.pos, o.target); }
+function flyToZone(zone) {
+  const a = ZONE_AREAS[zone];
+  if (!a) return setOverview();
+  const cx = (a[0] + a[1]) / 2, cz = (a[2] + a[3]) / 2, span = Math.max(a[1] - a[0], a[3] - a[2]);
+  const target = new THREE.Vector3(cx, 0, cz);
+  flyTo(target.clone().add(new THREE.Vector3(0, span * 0.95 + 6, span * 0.8 + 6)), target);
+}
 function flyToStation(id) {
   const p = PLACES[id]; if (!p) return;
-  const target = new THREE.Vector3(p.x, 0.8, p.z);
+  const target = new THREE.Vector3(p.x, 0.9, p.z);
   const narrow = container.clientWidth < 600;
-  // approach from the room's front-centre so the station faces the viewer
-  const dir = new THREE.Vector3(-p.x * 0.15, 0, 10).normalize();
-  const pos = target.clone().add(dir.multiplyScalar(narrow ? 13 : 10)).add(new THREE.Vector3(0, narrow ? 9 : 6.5, 0));
+  const dir = new THREE.Vector3(-p.x * 0.012, 0, 1).normalize();
+  const pos = target.clone().add(dir.multiplyScalar(narrow ? 12 : 8.5)).add(new THREE.Vector3(0, narrow ? 8 : 5.2, 0));
   flyTo(pos, target);
 }
-function flyTo(pos, target, ms = 900) {
+function flyTo(pos, target, ms = 1000) {
   flight = { from: camera.position.clone(), to: pos, tFrom: controls.target.clone(), tTo: target, start: performance.now(), ms };
 }
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const smooth = (t) => t * t * (3 - 2 * t);
 
-// The walk-in: outside the doors -> through them -> look left (free weights) -> look right (cardio) -> rise to overview.
+// The walk-in: dusk street -> doors slide open -> reception -> look at each zone -> rise to the floor plan.
+const CAPTIONS = [
+  [0.0, 'Welcome to SafeSwap Gym'],
+  [2.6, 'Reception is on your right. First-timers check in here.'],
+  [4.2, 'Legs zone: squat racks, leg press and leg machines'],
+  [5.8, 'Push zone: bench press, shoulder press and chest machines'],
+  [7.2, 'Pull zone, then cardio along the windows'],
+  [8.8, 'Here is the whole floor. Pick the machine you were going to use.'],
+];
 function startWalkIn() {
-  const o = overviewPose();
-  const D = ROOM.d / 2;
+  const o = overviewPose(), Dz = ROOM.d / 2;
+  const P = (x, y, z) => new THREE.Vector3(x, y, z);
+  const keys = [
+    { t: 0, pos: P(-6, 2.2, Dz + 24), target: P(0, 4.5, Dz) },
+    { t: 2.6, pos: P(0, 1.7, Dz + 0.5), target: P(0, 1.8, 0) },
+    { t: 4.0, pos: P(1.5, 1.75, Dz - 6), target: P(14, 1.4, Dz - 5) },
+    { t: 5.6, pos: P(0, 1.8, Dz - 13), target: P(-26, 1.3, -14) },
+    { t: 7.0, pos: P(0.5, 1.8, Dz - 16), target: P(4, 1.3, -18) },
+    { t: 8.4, pos: P(2, 1.9, Dz - 17), target: P(32, 1.3, -6) },
+    { t: 10.5, pos: o.pos, target: o.target },
+  ];
   intro = {
-    start: performance.now(),
-    keys: [
-      { t: 0,    pos: new THREE.Vector3(0, 1.7, D + 14), target: new THREE.Vector3(0, 1.6, 0) },
-      { t: 1.8,  pos: new THREE.Vector3(0, 1.7, D - 1),  target: new THREE.Vector3(0, 1.6, -10) },
-      { t: 3.0,  pos: new THREE.Vector3(0, 1.75, D - 7), target: new THREE.Vector3(-14, 1.2, -12) },
-      { t: 4.2,  pos: new THREE.Vector3(1, 1.75, D - 8), target: new THREE.Vector3(18, 1.2, 4) },
-      { t: 6.0,  pos: o.pos, target: o.target },
-    ],
+    start: performance.now(), keys,
+    pos: new THREE.CatmullRomCurve3(keys.map((k) => k.pos), false, 'centripetal'),
+    tgt: new THREE.CatmullRomCurve3(keys.map((k) => k.target), false, 'centripetal'),
+    cap: -1,
   };
+  $('#caption').hidden = false;
 }
 function updateIntro(now) {
   const s = (now - intro.start) / 1000;
-  const k = intro.keys;
-  // doors slide open as we approach
-  const open = smooth(Math.min(1, Math.max(0, (s - 0.4) / 1.0)));
-  for (const d of doors) { d.mesh.position.x = d.side * (1.25 + open * 2.3); d.handle.position.x = d.side * (0.2 + open * 2.3); }
+  const k = intro.keys, n = k.length - 1;
+  const open = smooth(Math.min(1, Math.max(0, (s - 1.0) / 1.2)));
+  for (const d of doors) { d.mesh.position.x = d.side * (1.5 + open * 2.9); d.handle.position.x = d.side * (0.25 + open * 2.9); }
   let i = 0;
-  while (i < k.length - 2 && s > k[i + 1].t) i++;
-  const a = k[i], b = k[i + 1];
-  const t = ease(Math.min(1, Math.max(0, (s - a.t) / (b.t - a.t))));
-  camera.position.lerpVectors(a.pos, b.pos, t);
-  controls.target.lerpVectors(a.target, b.target, t);
+  while (i < n - 1 && s > k[i + 1].t) i++;
+  const local = Math.min(1, Math.max(0, (s - k[i].t) / (k[i + 1].t - k[i].t)));
+  const seg = i === n - 1 ? ease(local) : i === 0 ? local * local * (2 - local) : local;
+  const u = (i + seg) / n;
+  camera.position.copy(intro.pos.getPoint(u));
+  if (s < k[n - 1].t) camera.position.y += Math.sin(s * 8.5) * 0.03; // gentle walking bob
+  controls.target.copy(intro.tgt.getPoint(u));
   camera.lookAt(controls.target);
-  if (s >= k[k.length - 1].t) finishIntro();
+  // fade sky to studio grey and drop the ceiling as we rise
+  if (s > k[n - 1].t + 0.3 && ceiling.visible) { ceiling.visible = false; facade.visible = false; scene.background = studioBg; scene.fog.color.set(0xe3e6ea); }
+  let c = 0; while (c < CAPTIONS.length - 1 && s >= CAPTIONS[c + 1][0]) c++;
+  if (c !== intro.cap) { intro.cap = c; const el = $('#caption'); el.textContent = CAPTIONS[c][1]; el.classList.remove('in'); void el.offsetWidth; el.classList.add('in'); }
+  if (s >= k[n].t) finishIntro();
 }
 function finishIntro() {
   intro = null;
   if (facade) facade.visible = false;
-  controls.enabled = true;
+  if (ceiling) ceiling.visible = false;
+  if (scene) { scene.background = studioBg; scene.fog.color.set(0xe3e6ea); scene.fog.near = 90; scene.fog.far = 200; }
+  if (controls) controls.enabled = true;
   document.body.classList.remove('intro-on');
+  $('#caption').hidden = true;
   $('#panel').hidden = false;
   $('#intro').classList.add('leaving');
   setTimeout(() => { $('#intro').hidden = true; }, 600);
   onResize();
-  const o = overviewPose();
-  camera.position.copy(o.pos); controls.target.copy(o.target);
+  if (camera) { const o = overviewPose(); camera.position.copy(o.pos); controls.target.copy(o.target); }
   renderWelcome();
 }
 
+let lastDeclutter = 0;
 function tick(now) {
+  const t = now / 1000;
   if (intro) updateIntro(now);
   else if (flight) {
-    const t = Math.min(1, (performance.now() - flight.start) / flight.ms); // wall-clock, so slow devices still finish
-    const k = ease(t);
-    camera.position.lerpVectors(flight.from, flight.to, k);
-    controls.target.lerpVectors(flight.tFrom, flight.tTo, k);
-    if (t >= 1) flight = null;
+    const f = Math.min(1, (performance.now() - flight.start) / flight.ms);
+    const e = ease(f);
+    camera.position.lerpVectors(flight.from, flight.to, e);
+    controls.target.lerpVectors(flight.tFrom, flight.tTo, e);
+    if (f >= 1) flight = null;
   }
+  for (const p of people) animate(p.rig, p.motion, t, { phase: p.phase, dy: p.dy });
   if (state.step === 3) {
-    const pulse = 0.16 + 0.1 * Math.sin(now / 350);
-    const swaps = swapCounts();
+    const pulse = 0.14 + 0.1 * Math.sin(now / 350), swaps = swapCounts();
     for (const [id, o] of stationObjects) if (swaps[id]) o.pad.material.opacity = pulse;
   }
   if (!intro) controls.update();
@@ -673,22 +887,19 @@ function tick(now) {
   if (now - lastDeclutter > 200) { lastDeclutter = now; declutterLabels(); }
 }
 
-// Hide labels that would overlap. Priority: selected/swap/hovered first, then nearer stations
-// (lower on screen); a hidden station still shows its name when hovered or picked from the list.
-let lastDeclutter = 0;
+// Hide labels that would overlap; selected/swap/hovered first, then nearer stations.
 function declutterLabels() {
   const items = [...stationObjects.entries()].map(([id, o]) => {
     o.label.classList.remove('crowded');
     const r = o.label.getBoundingClientRect();
-    const pri = o.label.classList.contains('selected') || o.label.classList.contains('has-swap') ? 2 : hoverId === id ? 3 : 0;
+    const pri = hoverId === id ? 3 : o.label.classList.contains('selected') || o.label.classList.contains('has-swap') ? 2 : o.label.classList.contains('dim') ? -1 : 0;
     return { o, r, pri };
   }).filter((x) => x.r.width > 0);
   items.sort((a, b) => b.pri - a.pri || b.r.bottom - a.r.bottom);
   const shown = [];
   for (const it of items) {
     const hit = shown.some((s) => it.r.left < s.right + 4 && it.r.right > s.left - 4 && it.r.top < s.bottom + 2 && it.r.bottom > s.top - 2);
-    if (hit && it.pri === 0) it.o.label.classList.add('crowded');
-    else shown.push(it.r);
+    if (hit && it.pri <= 0) it.o.label.classList.add('crowded'); else shown.push(it.r);
   }
 }
 function onResize() {
@@ -702,10 +913,12 @@ function onResize() {
 // ------------------------------------------------------------------
 // Guided flow (panel)
 // ------------------------------------------------------------------
+const STEP_TITLES = ['Choose a machine', 'Choose the exercise', 'Tell us what hurts', 'Your safe swap'];
 function setStep(n) {
   state.step = n;
   state.maxStep = Math.max(state.maxStep, n);
-  $('#stepText').textContent = `Step ${n + 1} of 4`;
+  if (n !== 3) state.guide = null;
+  $('#stepText').innerHTML = `<span>Step ${n + 1} of 4</span>${STEP_TITLES[n]}`;
   $('#navBack').disabled = n === 0;
   $('#navRestart').disabled = n === 0 && !state.station;
   document.querySelectorAll('.progress button').forEach((b) => {
@@ -729,24 +942,23 @@ function goTo(s) {
   else if (s === 2 && state.exercise) renderHurt();
   else if (s === 3 && state.result) renderResults(false);
 }
-function goBack() { if (state.step > 0) goTo(state.step === 2 && !state.station ? 0 : state.step - 1); }
+function goBack() {
+  if (state.guide) { const back = state.guide.back; state.guide = null; return back === 'results' ? renderResults(false) : goTo(state.step); }
+  if (state.step > 0) goTo(state.step === 2 && !state.station ? 0 : state.step - 1);
+}
 function restart() {
-  Object.assign(state, { station: null, exercise: null, injury: null, result: null, where: {}, maxStep: 0 });
+  Object.assign(state, { station: null, exercise: null, injury: null, result: null, where: {}, maxStep: 0, guide: null, zone: 'All' });
   renderWelcome();
 }
-
 function swapCounts() {
   const out = {};
   if (state.step !== 3 || !state.result) return out;
-  for (const r of state.result.results) {
-    const loc = state.where[r.id];
-    if (loc) out[loc.stationId] = (out[loc.stationId] || 0) + 1;
-  }
+  for (const r of state.result.results) { const loc = state.where[r.id]; if (loc) out[loc.stationId] = (out[loc.stationId] || 0) + 1; }
   return out;
 }
-
 function onStationClick(id) {
-  if (state.step === 3) { // in results: clicking a highlighted station scrolls to its swap
+  if (state.step === 3) {
+    if (state.guide) return;
     const card = body.querySelector(`.card[data-station="${id}"]`);
     if (card) { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); selectCard(card); }
     return;
@@ -757,26 +969,34 @@ function onStationClick(id) {
 // Step 1: choose a machine
 function renderWelcome() {
   setStep(0);
-  if (webglOk) setOverview();
-  const zones = [...new Set(state.stations.map((s) => s.zone))];
+  if (webglOk) state.zone === 'All' ? setOverview() : flyToZone(state.zone);
+  const zones = ZONE_ORDER.filter((z) => state.stations.some((s) => s.zone === z));
+  const shown = state.zone === 'All' ? zones : [state.zone];
   body.innerHTML = `
     ${webglOk ? '' : '<div class="fallback">3D isn\'t available on this device, but you can use the list below.</div>'}
     <h1>What were you about to use?</h1>
-    <p class="lead">${webglOk ? 'Tap a machine in the gym, or pick it from this list.' : 'Pick the machine from this list.'}</p>
-    <input class="search" id="q" placeholder="Know the exercise? Search, e.g. squat" autocomplete="off" aria-label="Search exercises by name">
+    <p class="lead">${webglOk ? 'Tap a machine in the gym or pick one below. Not sure? Search for the exercise.' : 'Pick the machine below, or search for the exercise.'}</p>
+    <div class="search-wrap"><span aria-hidden="true">⌕</span><input class="search" id="q" placeholder="Search an exercise, e.g. squat" autocomplete="off" aria-label="Search exercises by name"></div>
     <div class="list suggest" id="suggest"></div>
-    ${zones.map((z) => `
-      <h2>${ZONE_ICON[z] || ''} ${esc(z)}</h2>
-      <div class="list">${state.stations.filter((s) => s.zone === z).map((s) => `
-        <button class="item" data-station="${s.id}">
-          <span><span class="t">${esc(s.name)}</span><small>${esc(s.description)}</small></span>
-          <span class="arrow">›</span>
-        </button>`).join('')}</div>`).join('')}`;
+    <div class="zone-chips" role="tablist" aria-label="Gym zones">
+      <button class="zchip ${state.zone === 'All' ? 'on' : ''}" data-zone="All">All</button>
+      ${zones.map((z) => `<button class="zchip ${state.zone === z ? 'on' : ''}" data-zone="${esc(z)}" style="--zc:${zoneOf(z).color}"><i></i>${esc(z === 'Core & Functional' ? 'Core' : z)}</button>`).join('')}
+    </div>
+    ${shown.map((z) => `
+      <section class="zone" style="--zc:${zoneOf(z).color}">
+        <h2><i></i>${esc(z)}<small>${esc(zoneOf(z).blurb)}</small></h2>
+        <div class="list">${state.stations.filter((s) => s.zone === z).map((s) => `
+          <button class="item station" data-station="${s.id}">
+            <span><span class="t">${esc(s.name)}</span><small>${esc(s.description)}</small></span>
+            <span class="n">${s.exerciseCount}<em>moves</em></span>
+          </button>`).join('')}</div>
+      </section>`).join('')}`;
   body.querySelectorAll('[data-station]').forEach((b) => {
     b.addEventListener('click', () => openStation(b.dataset.station));
     b.addEventListener('mouseenter', () => setHover(b.dataset.station));
     b.addEventListener('mouseleave', () => setHover(null));
   });
+  body.querySelectorAll('[data-zone]').forEach((b) => b.addEventListener('click', () => { state.zone = b.dataset.zone; renderWelcome(); }));
   let timer;
   $('#q').addEventListener('input', (e) => {
     clearTimeout(timer);
@@ -814,67 +1034,56 @@ async function openStation(id) {
   state.station = st;
   setStep(1);
   if (webglOk) flyToStation(id);
-  body.innerHTML = `<h1>${esc(st.name)}</h1><p class="lead">${esc(st.description)}</p><p class="loading">Loading exercises…</p>`;
+  const head = `<div class="eyebrow-zone" style="--zc:${zoneOf(st.zone).color}"><i></i>${esc(st.zone)}</div><h1>${esc(st.name)}</h1>`;
+  body.innerHTML = `${head}<p class="lead">${esc(st.description)}</p><p class="loading">Loading exercises…</p>`;
   try {
     const r = await api(`/api/gym/stations/${encodeURIComponent(id)}/exercises`);
     if (state.station?.id !== id || state.step !== 1) return;
     const groups = {};
     for (const ex of r.exercises) (groups[MUSCLE_GROUP[ex.primaryMuscles[0]] || 'Other'] ||= []).push(ex);
     body.innerHTML = `
-      <h1>${esc(st.name)}</h1>
-      <p class="lead">Which exercise were you going to do here?</p>
-      ${r.exercises.length > 10 ? '<input class="search" id="filter" placeholder="Filter this list" autocomplete="off" aria-label="Filter exercises">' : ''}
+      ${head}
+      <p class="lead">Which exercise were you going to do here? Tap <b>▶</b> to watch how it's done.</p>
+      ${r.exercises.length > 10 ? '<div class="search-wrap"><span aria-hidden="true">⌕</span><input class="search" id="filter" placeholder="Filter this list" autocomplete="off" aria-label="Filter exercises"></div>' : ''}
       <div id="exList">
       ${GROUP_ORDER.filter((g) => groups[g]).map((g) => `
         <section data-group>
           <h2>${g}</h2>
           <div class="list">${groups[g].map((ex) => `
-            <button class="item" data-ex="${esc(ex.id)}" data-name="${esc(ex.name.toLowerCase())}">
-              <span><span class="t">${esc(ex.name)}</span><small>Works ${ex.primaryMuscles.map(plain).join(', ')}</small></span>
-              <span class="arrow">›</span>
-            </button>`).join('')}</div>
+            <div class="item ex" data-name="${esc(ex.name.toLowerCase())}">
+              <button class="ex-pick" data-ex="${esc(ex.id)}"><span class="t">${esc(ex.name)}</span><small>Works ${ex.primaryMuscles.map(plain).join(', ')}</small></button>
+              <button class="play" data-demo="${esc(ex.id)}" aria-label="Watch how to do ${esc(ex.name)}" title="Watch how it's done">▶</button>
+            </div>`).join('')}</div>
         </section>`).join('')}
       </div>`;
     body.querySelectorAll('[data-ex]').forEach((b) =>
       b.addEventListener('click', () => { state.exercise = r.exercises.find((x) => x.id === b.dataset.ex); state.result = null; state.maxStep = 2; renderHurt(); }));
+    body.querySelectorAll('[data-demo]').forEach((b) => b.addEventListener('click', () => openGuide(b.dataset.demo, 'exercise')));
     const f = $('#filter');
     if (f) f.addEventListener('input', () => {
       const q = f.value.trim().toLowerCase();
-      body.querySelectorAll('[data-ex]').forEach((b) => { b.hidden = q && !b.dataset.name.includes(q); });
-      body.querySelectorAll('[data-group]').forEach((s) => { s.hidden = ![...s.querySelectorAll('[data-ex]')].some((b) => !b.hidden); });
+      body.querySelectorAll('.item.ex').forEach((b) => { b.hidden = q && !b.dataset.name.includes(q); });
+      body.querySelectorAll('[data-group]').forEach((s) => { s.hidden = ![...s.querySelectorAll('.item.ex')].some((b) => !b.hidden); });
     });
-  } catch (err) {
-    body.insertAdjacentHTML('beforeend', `<div class="error">${esc(err.message)}</div>`);
-  }
+  } catch (err) { body.insertAdjacentHTML('beforeend', `<div class="error">${esc(err.message)}</div>`); }
 }
 
 // Step 3: what hurts
-const SPOTS = { // body figure hotspots (viewBox 0 0 200 320)
-  'Neck': [[100, 58]],
-  'Shoulder': [[68, 76], [132, 76]],
-  'Elbow': [[52, 128], [148, 128]],
-  'Wrist': [[44, 170], [156, 170]],
-  'Fingers': [[40, 192], [160, 192]],
-  'Lower back': [[100, 140]],
-  'Hip': [[80, 168], [120, 168]],
-  'Groin': [[100, 182]],
-  'Back of thigh': [[84, 210], [116, 210]],
-  'Knee': [[85, 245], [115, 245]],
-  'Ankle': [[87, 300], [113, 300]],
+const SPOTS = {
+  'Neck': [[100, 58]], 'Shoulder': [[68, 76], [132, 76]], 'Elbow': [[52, 128], [148, 128]], 'Wrist': [[44, 170], [156, 170]],
+  'Fingers': [[40, 192], [160, 192]], 'Lower back': [[100, 140]], 'Hip': [[80, 168], [120, 168]], 'Groin': [[100, 182]],
+  'Back of thigh': [[84, 210], [116, 210]], 'Knee': [[85, 245], [115, 245]], 'Ankle': [[87, 300], [113, 300]],
 };
 function bodySvg() {
   const spots = Object.entries(SPOTS).flatMap(([area, pts]) =>
     pts.map(([x, y]) => `<circle class="spot" data-area="${area}" cx="${x}" cy="${y}" r="9"><title>${area}</title></circle>`)).join('');
   return `<svg class="body-svg" viewBox="0 0 200 320" role="img" aria-label="Body diagram: tap where it hurts">
-    <circle class="shape" cx="100" cy="30" r="20"/>
-    <rect class="shape" x="92" y="48" width="16" height="14" rx="4"/>
+    <circle class="shape" cx="100" cy="30" r="20"/><rect class="shape" x="92" y="48" width="16" height="14" rx="4"/>
     <rect class="shape" x="66" y="64" width="68" height="110" rx="26"/>
     <rect class="shape" x="44" y="70" width="18" height="118" rx="9" transform="rotate(6 53 70)"/>
     <rect class="shape" x="138" y="70" width="18" height="118" rx="9" transform="rotate(-6 147 70)"/>
-    <rect class="shape" x="74" y="160" width="22" height="148" rx="11"/>
-    <rect class="shape" x="104" y="160" width="22" height="148" rx="11"/>
-    ${spots}
-  </svg>`;
+    <rect class="shape" x="74" y="160" width="22" height="148" rx="11"/><rect class="shape" x="104" y="160" width="22" height="148" rx="11"/>
+    ${spots}</svg>`;
 }
 function renderHurt() {
   setStep(2);
@@ -882,14 +1091,17 @@ function renderHurt() {
   const areas = [...new Set(state.injuries.map((i) => i.area))];
   body.innerHTML = `
     <h1>Where does it hurt?</h1>
-    <div class="picked">You picked <b>${esc(ex.name)}</b></div>
-    <p class="lead" style="margin-top:10px">Tap the spot on the body, or choose below.</p>
-    <div class="body-wrap">${bodySvg()}</div>
-    <div class="chips">${areas.map((a) => `<button class="chip" data-area="${esc(a)}">${esc(a)}</button>`).join('')}</div>
+    <div class="picked"><span>You picked</span><b>${esc(ex.name)}</b><button class="link" id="demoPicked">▶ How it's done</button></div>
+    <div class="hurt-grid">
+      <div class="body-wrap">${bodySvg()}</div>
+      <div><p class="lead" style="margin:0 0 10px">Tap the spot on the body, or choose:</p>
+        <div class="chips">${areas.map((a) => `<button class="chip" data-area="${esc(a)}">${esc(a)}</button>`).join('')}</div></div>
+    </div>
     <div class="options" id="opts"></div>
-    <button class="btn-primary" id="find" disabled style="margin-top:10px">Find a safe swap</button>`;
+    <button class="btn-primary" id="find" disabled>Find a safe swap</button>`;
   body.querySelectorAll('[data-area]').forEach((el) => el.addEventListener('click', () => chooseArea(el.dataset.area)));
   $('#find').addEventListener('click', findSwaps);
+  $('#demoPicked').addEventListener('click', () => openGuide(ex.id, 'hurt'));
   const prev = state.injuries.find((i) => i.tag === state.injury);
   if (prev) chooseArea(prev.area, prev.tag);
 }
@@ -898,9 +1110,7 @@ function chooseArea(area, keepTag) {
   const options = state.injuries.filter((i) => i.area === area);
   state.injury = keepTag || (options.length === 1 ? options[0].tag : null);
   $('#opts').innerHTML = `${options.length > 1 ? '<p class="lead" style="margin:0 0 8px">Which one sounds like you?</p>' : ''}` + options.map((i) => `
-    <button class="option ${state.injury === i.tag ? 'on' : ''}" data-tag="${esc(i.tag)}">
-      ${esc(i.hint)}<small>${esc(i.name)}</small>
-    </button>`).join('');
+    <button class="option ${state.injury === i.tag ? 'on' : ''}" data-tag="${esc(i.tag)}">${esc(i.hint)}<small>${esc(i.name)}</small></button>`).join('');
   $('#opts').querySelectorAll('[data-tag]').forEach((b) => b.addEventListener('click', () => {
     state.injury = b.dataset.tag;
     $('#opts').querySelectorAll('.option').forEach((o) => o.classList.toggle('on', o === b));
@@ -920,8 +1130,7 @@ async function findSwaps() {
     });
     const ids = r.results.map((c) => c.id);
     state.where = ids.length ? await api(`/api/gym/locate?ids=${ids.map(encodeURIComponent).join(',')}`) : {};
-    state.result = r;
-    state.maxStep = 3;
+    state.result = r; state.maxStep = 3;
     renderResults(true);
   } catch (err) {
     btn.disabled = false; btn.textContent = 'Find a safe swap';
@@ -930,45 +1139,43 @@ async function findSwaps() {
 }
 
 const reasonText = (r) => r.replace(/^[a-z]+ '[^']+': /, '');
-const SAFETY_PLAIN = {
-  BLOOM_NEGATIVE: 'Safe for your injury',
-  BLOOM_POSITIVE_RULE_CLEARED: 'Safe for your injury (double-checked)',
-};
+const SAFETY_PLAIN = { BLOOM_NEGATIVE: 'Safe for your injury', BLOOM_POSITIVE_RULE_CLEARED: 'Safe for your injury (double-checked)' };
 function selectCard(card) {
   body.querySelectorAll('.card').forEach((c) => c.classList.toggle('on', c === card));
   if (card.dataset.station && webglOk) flyToStation(card.dataset.station);
 }
 function renderResults(fly) {
   const r = state.result;
+  state.guide = null;
   setStep(3);
   const injury = state.injuries.find((i) => i.tag === state.injury);
   const area = injury.area.toLowerCase();
   const noSwap = r.status === 'NO_SAFE_SUBSTITUTE';
   const verdict = r.target.unsafeForInjury
     ? `<div class="verdict skip"><strong>Skip ${esc(r.target.name)} for now</strong>${esc(reasonText(r.target.unsafeReasons[0]))}</div>`
-    : `<div class="verdict ok"><strong>${esc(r.target.name)} is OK for your ${esc(area)}</strong>It's not on the avoid list. If it still hurts, try one of these instead.</div>`;
-
+    : `<div class="verdict ok"><strong>${esc(r.target.name)} is OK for your ${esc(area)}</strong>It's not on the avoid list. <button class="link" data-guide="${esc(r.target.id)}">▶ Check your form</button> If it still hurts, try one of these instead.</div>`;
   const cards = r.results.map((c) => {
     const loc = state.where[c.id];
+    const st = loc && state.stations.find((s) => s.id === loc.stationId);
     return `
-      <div class="card" data-station="${loc ? esc(loc.stationId) : ''}">
-        <div class="top"><span class="name">${esc(c.name)}</span><span class="rank">Option ${c.rank}</span></div>
+      <div class="card" data-station="${loc ? esc(loc.stationId) : ''}" style="--zc:${zoneOf(st?.zone).color}">
+        <div class="top"><span class="rank">${c.rank}</span><span class="name">${esc(c.name)}</span></div>
         <div class="row">Works <b>${c.primaryMuscles.map(plain).join(', ')}</b></div>
-        ${loc ? `<div class="row">Where: <b>${esc(loc.stationName)}</b> (${esc(loc.zone)})</div>` : ''}
+        ${loc ? `<div class="row where"><i></i>${esc(loc.stationName)} · ${esc(loc.zone)}</div>` : ''}
         <div class="safe">✓ ${esc(SAFETY_PLAIN[c.safetyMethod] || 'Safe for your injury')}</div>
-        ${loc && webglOk ? '<button class="go">Show me where</button>' : ''}
+        <div class="actions">
+          <button class="btn-small primary" data-guide="${esc(c.id)}">▶ How to do it</button>
+          ${loc && webglOk ? '<button class="btn-small go">Show me where</button>' : ''}
+        </div>
       </div>`;
   }).join('');
-
   const p = r.pipeline;
   const avoid = r.rejected.filter((x) => x.stage === 'SAFETY');
   body.innerHTML = `
     <h1>${noSwap ? 'No safe swap found' : 'Do this instead'}</h1>
     <p class="lead">For your ${esc(area)}: ${esc(injury.guidance)}</p>
     ${verdict}
-    ${noSwap
-      ? `<div class="error">${esc(r.message)} A physiotherapist can suggest a modified version.</div>`
-      : cards}
+    ${noSwap ? `<div class="error">${esc(r.message)} A physiotherapist can suggest a modified version.</div>` : cards}
     <details class="how">
       <summary>How we checked this</summary>
       <ol>
@@ -981,12 +1188,69 @@ function renderResults(fly) {
       ${avoid.length ? `<p style="margin:10px 0 0;color:var(--muted)"><b style="color:var(--text)">Avoid for now:</b> ${avoid.slice(0, 6).map((x) => esc(x.name)).join(', ')}${avoid.length > 6 ? ` and ${avoid.length - 6} more` : ''}</p>` : ''}
     </details>
     <button class="restart-big" id="again">↺ Start over with another machine</button>`;
-
-  body.querySelectorAll('.card').forEach((card) => {
-    card.addEventListener('click', () => selectCard(card));
-  });
+  body.querySelectorAll('.card').forEach((card) => card.addEventListener('click', (e) => { if (!e.target.closest('[data-guide]')) selectCard(card); }));
+  body.querySelectorAll('[data-guide]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openGuide(b.dataset.guide, 'results'); }));
   $('#again').addEventListener('click', restart);
   if (fly && webglOk) setOverview();
+}
+
+// ---------- Form guide: 3D coach + steps (data from GET /api/exercises/{id}/guide) ----------
+let coach = null;
+async function openGuide(id, back) {
+  const prevHtml = body.innerHTML, prevStep = state.step;
+  body.innerHTML = '<p class="loading">Loading the coach…</p>';
+  let g;
+  try { g = await api(`/api/exercises/${encodeURIComponent(id)}/guide`); } catch (err) {
+    body.innerHTML = prevHtml; body.insertAdjacentHTML('beforeend', `<div class="error">${esc(err.message)}</div>`); return;
+  }
+  state.guide = { data: g, back };
+  $('#navBack').disabled = false;
+  $('#stepText').innerHTML = `<span>Step ${prevStep + 1} of 4</span>How to do it`;
+  const injury = state.injuries.find((i) => i.tag === state.injury);
+  const loc = (await api(`/api/gym/locate?ids=${encodeURIComponent(g.id)}`).catch(() => ({})))[g.id];
+  body.innerHTML = `
+    <button class="link back-link" id="guideBack">‹ Back to ${back === 'results' ? 'your swaps' : back === 'hurt' ? '“Where does it hurt?”' : 'the exercise list'}</button>
+    <h1>${esc(g.name)}</h1>
+    <div class="tags">
+      <span class="tag">${esc(g.motionLabel)}</span>
+      ${g.primaryMuscles.map((m) => `<span class="tag soft">${esc(plain(m))}</span>`).join('')}
+      ${loc ? `<span class="tag soft">📍 ${esc(loc.stationName)}</span>` : ''}
+    </div>
+    <div class="coach" id="coachBox">
+      <div class="coach-stage" id="coachStage">${webglOk ? '<span class="coach-hint">Drag to turn</span>' : '<p class="empty" style="padding:20px">3D demo not available on this device.</p>'}</div>
+      <div class="coach-ctrl">
+        <button id="cPlay" aria-label="Pause">❚❚</button>
+        <button id="cSlow" aria-pressed="false">Slow-mo</button>
+        <span class="sep"></span>
+        <button data-view="auto" class="on">360°</button><button data-view="front">Front</button><button data-view="side">Side</button>
+      </div>
+    </div>
+    <div class="pills"><span class="pill"><b>Tempo</b>${esc(g.tempo)}</span><span class="pill"><b>Beginner</b>${esc(g.beginnerDose)}</span></div>
+    <h2>Step by step</h2>
+    <ol class="steps">${g.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
+    <div class="do-dont">
+      <div class="do"><h3>✓ Do</h3><ul>${g.cues.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>
+      <div class="dont"><h3>✕ Avoid</h3><ul>${g.mistakes.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>
+    </div>
+    <div class="breath"><b>Breathing</b>${esc(g.breathing)}</div>
+    ${injury && state.step >= 2 ? `<div class="injury-note"><b>With your ${esc(injury.area.toLowerCase())}</b>${esc(injury.guidance)} Stop if the pain is sharp or above 3 out of 10.</div>` : ''}
+    ${loc && webglOk ? '<button class="btn-small go wide" id="guideWhere">📍 Show me where in the gym</button>' : ''}
+    <p class="fine">Demo picked on the server by ${esc(g.matchedBy)}. ${esc(g.note)}</p>`;
+  body.scrollTop = 0;
+  $('#guideBack').addEventListener('click', goBack);
+  if (loc && webglOk) { flyToStation(loc.stationId); $('#guideWhere').addEventListener('click', () => flyToStation(loc.stationId)); }
+  if (webglOk) {
+    coach ||= createCoach();
+    if (coach) {
+      $('#coachStage').prepend(coach.canvas);
+      coach.show(g.motion, g.equipment); coach.setPaused(false); coach.setSpeed(1);
+      $('#cPlay').addEventListener('click', (e) => { coach.setPaused(!coach.paused); e.target.textContent = coach.paused ? '▶' : '❚❚'; e.target.setAttribute('aria-label', coach.paused ? 'Play' : 'Pause'); });
+      $('#cSlow').addEventListener('click', (e) => { const on = e.target.getAttribute('aria-pressed') !== 'true'; e.target.setAttribute('aria-pressed', on); e.target.classList.toggle('on', on); coach.setSpeed(on ? 0.4 : 1); });
+      body.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => {
+        body.querySelectorAll('[data-view]').forEach((x) => x.classList.toggle('on', x === b)); coach.setView(b.dataset.view);
+      }));
+    }
+  }
 }
 
 // ------------------------------------------------------------------
@@ -999,13 +1263,14 @@ document.querySelectorAll('.progress button').forEach((b) => b.addEventListener(
 (async function boot() {
   initScene();
   const enter = $('#enter');
-  enter.disabled = true; enter.textContent = 'Opening the doors…';
+  enter.disabled = true; enter.textContent = 'Unlocking the doors…';
   try {
     [state.stations, state.injuries] = await Promise.all([api('/api/gym/stations'), api('/api/injuries')]);
     if (webglOk) buildStations();
+    $('#introStats').textContent = `${state.stations.length} machines · ${state.stations.reduce((a, s) => a + s.exerciseCount, 0)} exercises · 6 zones`;
     enter.disabled = false; enter.textContent = 'Walk in';
   } catch (err) {
-    $('.intro-card p:not(.eyebrow)').innerHTML = `<span style="color:var(--warn)">${esc(err.message)}</span>`;
+    $('#introText').innerHTML = `<span style="color:var(--warn)">${esc(err.message)}</span>`;
     enter.textContent = 'Try again'; enter.disabled = false;
     enter.onclick = () => location.reload();
     $('#skip').hidden = true;
@@ -1018,3 +1283,6 @@ document.querySelectorAll('.progress button').forEach((b) => b.addEventListener(
   });
   $('#skip').addEventListener('click', finishIntro);
 })();
+
+// Debug hook for visual QA: ?debug lets the console open any guide directly.
+if (new URLSearchParams(location.search).has('debug')) window.safeswap = { openGuide, state };

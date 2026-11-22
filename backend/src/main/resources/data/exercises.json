@@ -2483,6 +2483,87 @@
   "tags" : [ "low-impact", "knee-friendly" ],
   "instructions" : "Set up with the air bike. Push and pull the handles while pedalling hard for short bursts. Keep the knees tracking over the toes and drive up through the mid-foot. This keeps stress on the knee joint low. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
 }, {
+  "id" : "EX0277",
+  "name" : "Machine Pec Deck",
+  "primaryMuscles" : [ "chest" ],
+  "secondaryMuscles" : [ "front-delts" ],
+  "equipment" : [ "machine" ],
+  "movementPattern" : "isolation",
+  "tags" : [ "deep-shoulder-stretch-loaded", "supported" ],
+  "instructions" : "Set up with the machine. Sit tall with the forearms on the pads and bring the pads together in front of the chest. Move only at the target joint and avoid swinging or using momentum. The pad or bench supports your torso, reducing spinal load. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
+  "id" : "EX0278",
+  "name" : "Cable Crossover",
+  "primaryMuscles" : [ "chest" ],
+  "secondaryMuscles" : [ "front-delts" ],
+  "equipment" : [ "cable" ],
+  "movementPattern" : "isolation",
+  "tags" : [ "shoulder-friendly" ],
+  "instructions" : "Set up with the cable. Step forward between the two towers and sweep the handles together at chest height. Move only at the target joint and avoid swinging or using momentum. The arm path keeps the shoulder in a comfortable range. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
+  "id" : "EX0279",
+  "name" : "Cable Glute Kickback",
+  "primaryMuscles" : [ "glutes" ],
+  "secondaryMuscles" : [ "hamstrings" ],
+  "equipment" : [ "cable" ],
+  "movementPattern" : "isolation",
+  "tags" : [ "hip-extension-supported" ],
+  "instructions" : "Set up with the cable. Brace the torso and push one leg straight back without arching the lower back. Move only at the target joint and avoid swinging or using momentum. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
+  "id" : "EX0280",
+  "name" : "Machine Glute Kickback",
+  "primaryMuscles" : [ "glutes" ],
+  "secondaryMuscles" : [ "hamstrings" ],
+  "equipment" : [ "machine" ],
+  "movementPattern" : "isolation",
+  "tags" : [ "hip-extension-supported" ],
+  "instructions" : "Set up with the machine. Brace the torso and push one leg straight back without arching the lower back. Move only at the target joint and avoid swinging or using momentum. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
+  "id" : "EX0281",
+  "name" : "Dumbbell Concentration Curl",
+  "primaryMuscles" : [ "biceps" ],
+  "secondaryMuscles" : [ ],
+  "equipment" : [ "dumbbell" ],
+  "movementPattern" : "isolation",
+  "tags" : [ "elbow-flexion", "supported" ],
+  "instructions" : "Set up with the dumbbell. Sit and brace the elbow against the inner thigh, then curl the weight up. Move only at the target joint and avoid swinging or using momentum. The pad or bench supports your torso, reducing spinal load. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
+  "id" : "EX0282",
+  "name" : "Dumbbell Triceps Kickback",
+  "primaryMuscles" : [ "triceps" ],
+  "secondaryMuscles" : [ ],
+  "equipment" : [ "dumbbell" ],
+  "movementPattern" : "isolation",
+  "tags" : [ "elbow-extension" ],
+  "instructions" : "Set up with the dumbbell. Hinge forward, keep the upper arm by your side and straighten the elbow. Move only at the target joint and avoid swinging or using momentum. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
+  "id" : "EX0283",
+  "name" : "Cable Triceps Kickback",
+  "primaryMuscles" : [ "triceps" ],
+  "secondaryMuscles" : [ ],
+  "equipment" : [ "cable" ],
+  "movementPattern" : "isolation",
+  "tags" : [ "elbow-extension" ],
+  "instructions" : "Set up with the cable. Hinge forward, keep the upper arm by your side and straighten the elbow. Move only at the target joint and avoid swinging or using momentum. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
+  "id" : "EX0284",
+  "name" : "Single-Arm Cable Triceps Kickback",
+  "primaryMuscles" : [ "triceps" ],
+  "secondaryMuscles" : [ ],
+  "equipment" : [ "cable" ],
+  "movementPattern" : "isolation",
+  "tags" : [ "elbow-extension", "unilateral" ],
+  "instructions" : "Set up with the cable. Hinge forward, keep the upper arm by your side and straighten the elbow. Move only at the target joint and avoid swinging or using momentum. Work one side at a time to fix imbalances. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
+  "id" : "EX0285",
+  "name" : "Battle Rope Waves",
+  "primaryMuscles" : [ "front-delts", "core" ],
+  "secondaryMuscles" : [ "forearms" ],
+  "equipment" : [ "battle-rope" ],
+  "movementPattern" : "isolation",
+  "tags" : [ "explosive", "grip-intensive" ],
+  "instructions" : "Set up with the battle rope. Stand in a half squat and whip the ropes up and down in fast alternating waves. Move only at the target joint and avoid swinging or using momentum. Maintain a strong grip on the handles throughout. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
   "id" : "EX9001",
   "name" : "BARBELL BENCH PRESS",
   "primaryMuscles" : [ "chest" ],

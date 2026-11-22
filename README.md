@@ -14,7 +14,7 @@ Target users: gym-goers managing a minor injury (including complete beginners), 
 
 ### The interface: a 3D gym
 
-The default UI (`frontend/index.html`) is a **walk-around 3D gym** built with three.js, aimed at people new to the gym. It opens at the front door. Pressing **Walk in** slides the glass doors open and walks the camera past reception, glancing at the free weights and the cardio row, before rising to a view of the whole floor. Hanging signs mark four zones (Cardio, Free weights, Machines, Functional) with **15 popular stations**: treadmills; bikes, rowers and ellipticals; bench press; squat rack; deadlift platform; dumbbell rack; leg press and hack squat; leg extension and curl; lat pulldown and row; chest press and pec deck; cable crossover; kettlebells; pull-up and dip station; turf and sled; mats.
+The default UI (`frontend/index.html`) is a **walk-around 3D gym** built with three.js, aimed at people new to the gym. It opens on the street outside the gym at dusk. Pressing **Walk in** slides the glass doors open and walks the camera past reception and through each zone, with captions, before rising to a view of the whole floor, where gym members are training. Zones follow a push/pull/legs split: **Push, Pull, Legs, Arms, Core & Functional, Cardio**, with **35 popular stations** (flat and incline bench, shoulder press, chest press, pec deck, cable crossover, dip station, pull-up bar, lat pulldown, seated row, T-bar row, deadlift platform, squat rack, Smith machine, leg press, hack squat, leg extension, leg curl, hip thrust, calf raise, hip abductor/adductor, back extension, preacher curl, EZ-bar rack, cable arms, dumbbells, ab crunch, cable tower, kettlebells, turf, mats, treadmills, bikes, rowers, ellipticals). Tap **How to do it** (or ▶ next to any exercise) and a **3D coach** demonstrates the form, next to step-by-step instructions, do/avoid cues, breathing, tempo and a beginner dose.
 
 1. **Machine:** tap a machine in the 3D room, or pick it from the list (grouped by zone).
 2. **Exercise:** choose what you planned to do there, grouped by body area (Legs, Chest, Back…).
@@ -54,11 +54,13 @@ The original form-based UI with the full method tables is kept as **`classic.htm
 │       │   ├── data/                loader/validator, synthetic data generator
 │       │   ├── bench/               BenchmarkRunner
 │       │   ├── model/, error/, config/
-│       ├── main/resources/data/     exercises.json (278 rows → 276 unique), injury_rules.json (12 injuries),
-│       │                            gym_layout.json (15 stations: zone, equipment, name keywords)
+│       ├── main/resources/data/     exercises.json (287 rows → 285 unique), injury_rules.json (12 injuries),
+│       │                            gym_layout.json (35 stations: zone, equipment, name keywords),
+│       │                            form_guides.json (KMP keyword → demo motion rules, coaching cues)
 │       └── test/java/com/exsub/     JUnit 5 tests (40)
 ├── frontend/                        plain HTML/CSS/JS + a zero-dependency Node static server
 │   ├── index.html, gym.js, gym.css  3D gym UI (three.js 0.160 from the jsDelivr CDN)
+│   ├── rig.js                       jointed 3D figure: coach demos + gym members (animation only)
 │   └── classic.html/.js/.css        form-based UI with full method details
 ├── docs/
 │   ├── REPORT.md                    technical report
@@ -139,7 +141,7 @@ This writes `docs/benchmark_results.md` and `docs/benchmark_results.csv`. Defaul
 cd backend && mvn -q compile exec:java -Dexec.mainClass=com.exsub.data.DataGeneratorMain
 ```
 
-This rewrites `src/main/resources/data/exercises.json` deterministically: 276 unique exercises plus 2 **deliberate duplicates** that exercise the loader's duplicate detection. For a large synthetic catalog, run `-Dexec.args="/tmp/big.json 10000"` and point the backend at it (see below).
+This rewrites `src/main/resources/data/exercises.json` deterministically: 285 unique exercises plus 2 **deliberate duplicates** that exercise the loader's duplicate detection. For a large synthetic catalog, run `-Dexec.args="/tmp/big.json 10000"` and point the backend at it (see below).
 
 ### Environment variables (all optional, no secrets)
 
@@ -172,6 +174,7 @@ echo "[]" > /tmp/empty.json && EXSUB_DATA_EXERCISESPATH=file:/tmp/empty.json mvn
 | GET | `/api/gym/stations` | The 15 gym stations with zone and exercise counts |
 | GET | `/api/gym/stations/{id}/exercises` | Exercises at one station. Placement uses **Trie** lookups: exact tag-trie matches on equipment, plus name-trie word-prefix matches on station keywords (e.g. `leg press`) |
 | GET | `/api/gym/locate?ids=EX0001,EX0187` | Which station each exercise is done at (used to highlight swaps in the 3D gym) |
+| GET | `/api/exercises/{id}/guide` | Form guide: demo motion (chosen by KMP keyword rules), steps, do/avoid cues, breathing, tempo, beginner dose |
 | GET | `/api/catalog/stats` | Load report (duplicates/invalid rows), trie sizes, Bloom m/k/n, theoretical and **measured** FPP |
 
 Errors always come back as JSON: `{status, code, message, hints[], timestamp}`. Codes include `EXERCISE_REQUIRED`, `UNKNOWN_INJURY_TAG` (hints = valid tags), `EXERCISE_NOT_FOUND` / `AMBIGUOUS_EXERCISE` (hints = trie suggestions), `INVALID_MAX_RESULTS`, `KEYWORD_REQUIRED`, `PREFIX_REQUIRED`, `MALFORMED_JSON`, and `CATALOG_EMPTY` (503).
@@ -187,7 +190,7 @@ curl -s -X POST http://localhost:8085/api/substitutions \
 ```jsonc
 {
   "status": "OK",
-  "message": "3 safe substitute(s) found from 87 same-muscle candidates (27 rejected as unsafe after rule confirmation).",
+  "message": "3 safe substitute(s) found from 89 same-muscle candidates (27 rejected as unsafe after rule confirmation).",
   "target": {
     "id": "EX0173", "name": "Barbell Back Squat", "resolvedBy": "Trie exact-name match",
     "primaryMuscles": ["quads", "glutes"], "movementPattern": "squat",
@@ -212,9 +215,9 @@ curl -s -X POST http://localhost:8085/api/substitutions \
   ],
   "pipeline": {
     "targetLookup": "Trie exact-name match",
-    "safetyCheck": "Bloom filter pre-check (m=2991 bits, k=7) + exact rule-engine confirmation of every positive",
-    "candidatesConsidered": 87, "bloomNegatives": 60, "bloomPositives": 27,
-    "confirmedUnsafe": 27, "falsePositivesCleared": 0, "ruleEvaluations": 27, "ruleEvaluationsAvoided": 60, "…": "…"
+    "safetyCheck": "Bloom filter pre-check (m=3020 bits, k=7) + exact rule-engine confirmation of every positive",
+    "candidatesConsidered": 89, "bloomNegatives": 61, "bloomPositives": 28,
+    "confirmedUnsafe": 27, "falsePositivesCleared": 1, "ruleEvaluations": 28, "ruleEvaluationsAvoided": 61, "…": "…"
   }
 }
 ```
@@ -282,6 +285,6 @@ Capture these with the backend and frontend running:
 6. `docs/screenshots/03-rejected.png`: the expanded "Rejected candidates" list, with confirmed rule reasons.
 7. `docs/screenshots/04-error.png`: submit just `Squat` (ambiguous → suggestions), or an unknown injury.
 8. `docs/screenshots/05-stats.png`: the catalog & Bloom filter stats card (duplicates rejected, measured FPP).
-9. `docs/screenshots/06-tests.png`: terminal output of `mvn test` (40 tests, BUILD SUCCESS).
+9. `docs/screenshots/06-tests.png`: terminal output of `mvn test` (41 tests, BUILD SUCCESS).
 
 See [`docs/REPORT.md`](docs/REPORT.md) for the technical report and [`docs/VIVA_PREP.md`](docs/VIVA_PREP.md) for viva preparation.

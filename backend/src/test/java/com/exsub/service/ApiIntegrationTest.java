@@ -76,7 +76,7 @@ class ApiIntegrationTest {
     void gymStationsPartitionCatalogViaTries() throws Exception {
         mvc.perform(get("/api/gym/stations"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(15)))
+                .andExpect(jsonPath("$", hasSize(35)))
                 .andExpect(jsonPath("$[*].exerciseCount", everyItem(greaterThan(0))));
         // every catalog exercise is placed at exactly one station
         int total = gymService.stations().stream().mapToInt(GymService.StationSummary::exerciseCount).sum();
@@ -101,6 +101,40 @@ class ApiIntegrationTest {
                 .andExpect(jsonPath("$.code", is("STATION_NOT_FOUND")));
         mvc.perform(get("/api/injuries"))
                 .andExpect(jsonPath("$[0].area", is("Lower back")));
+    }
+
+    @Autowired
+    FormGuideService formGuideService;
+
+    @Test
+    void formGuideMapsEveryExerciseToADemoMotionViaKmp() throws Exception {
+        mvc.perform(get("/api/exercises/EX0001/guide"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.motion", is("bench")))
+                .andExpect(jsonPath("$.matchedBy", containsString("KMP")))
+                .andExpect(jsonPath("$.steps", hasSize(greaterThanOrEqualTo(3))))
+                .andExpect(jsonPath("$.cues", not(empty())))
+                .andExpect(jsonPath("$.mistakes", not(empty())));
+        mvc.perform(get("/api/exercises/NOPE/guide"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is("EXERCISE_NOT_FOUND")));
+
+        var catalog = catalogService.snapshot().catalog();
+        java.util.Map<String, String> expected = java.util.Map.of(
+                "Barbell Back Squat", "squat",
+                "Medicine Ball Rotational Throw", "twist",   // "throw" contains "row": rotation rules must win
+                "Dumbbell Biceps Curl", "curl",
+                "Machine Leg Curl", "legcurl",
+                "Cable Lat Pulldown", "pulldown",
+                "Treadmill Run", "run",
+                "Machine Leg Press", "legpress",
+                "Rowing Machine", "rowing");
+        expected.forEach((name, motion) ->
+                org.junit.jupiter.api.Assertions.assertEquals(motion, formGuideService.motionFor(catalog.byExactName(name))[0], name));
+        for (var ex : catalog.all()) {
+            var g = formGuideService.guide(ex.id());
+            org.junit.jupiter.api.Assertions.assertFalse(g.steps().isEmpty(), ex.name());
+        }
     }
 
     @Test

@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>SafeSwap Gym</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="gym.css">
   <script type="importmap">
     {
@@ -17,17 +20,20 @@
 <body class="intro-on">
   <div id="scene" aria-hidden="true"></div>
 
-  <div class="brand"><strong>SafeSwap</strong> Gym</div>
+  <div class="brand"><span class="logo">S</span><strong>SafeSwap</strong>&nbsp;Gym</div>
   <div class="hint" id="sceneHint">Drag to look around · scroll to zoom · tap a machine</div>
+  <div id="caption" class="caption" hidden></div>
 
   <!-- Front-door welcome -->
   <section id="intro" class="intro" aria-labelledby="introTitle">
     <div class="intro-card">
-      <p class="eyebrow">First time here?</p>
-      <h1 id="introTitle">Welcome to SafeSwap Gym</h1>
-      <p>Tell us which machine you were going to use and what hurts. We'll show you a safe exercise to do instead, and where to find it in the gym.</p>
+      <p class="eyebrow">First time at the gym?</p>
+      <h1 id="introTitle">Train around your injury, not through it.</h1>
+      <p id="introText">Show us the machine you were going to use and what hurts. We'll find a safe exercise to do instead, show you where it is, and a coach will demonstrate the form.</p>
+      <ol class="intro-steps"><li><b>Pick a machine</b></li><li><b>Say what hurts</b></li><li><b>Watch the safe swap</b></li></ol>
       <button id="enter" class="btn-primary">Walk in</button>
       <button id="skip" class="btn-link">Skip the walk-in</button>
+      <p class="intro-stats" id="introStats">&nbsp;</p>
     </div>
   </section>
 
@@ -38,10 +44,10 @@
       <button id="navRestart" class="nav-btn" aria-label="Start over">↺ Start over</button>
     </div>
     <nav class="progress" aria-label="Steps">
-      <button data-step="0"><span>1</span>Machine</button>
-      <button data-step="1"><span>2</span>Exercise</button>
-      <button data-step="2"><span>3</span>What hurts</button>
-      <button data-step="3"><span>4</span>Safe swap</button>
+      <button data-step="0">Machine</button>
+      <button data-step="1">Exercise</button>
+      <button data-step="2">What hurts</button>
+      <button data-step="3">Safe swap</button>
     </nav>
     <div id="panelBody" class="panel-body" aria-live="polite"></div>
     <footer class="panel-foot">

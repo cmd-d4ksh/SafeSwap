@@ -150,7 +150,17 @@ public final class ExerciseCatalogGenerator {
         "Elliptical Trainer|squat|quads,glutes|calves,hamstrings|elliptical|low-impact,knee-friendly|Push through the whole foot and keep a steady rhythm.",
         "Stair Climber|squat|glutes,quads|calves,hamstrings|stair-climber|low-impact|Take full steps and avoid leaning on the handrails.",
         "Air Bike Sprint|squat|quads|front-delts,calves|air-bike|low-impact,knee-friendly|Push and pull the handles while pedalling hard for short bursts.",
+        // ---------- MORE POPULAR MACHINES (appended so earlier ids stay stable) ----------
+        "Pec Deck|isolation|chest|front-delts|machine|deep-shoulder-stretch-loaded,supported|Sit tall with the forearms on the pads and bring the pads together in front of the chest.",
+        "Cable Crossover|isolation|chest|front-delts|cable|shoulder-friendly|Step forward between the two towers and sweep the handles together at chest height.",
+        "Glute Kickback|isolation|glutes|hamstrings|cable,machine|hip-extension-supported|Brace the torso and push one leg straight back without arching the lower back.",
+        "Concentration Curl|isolation|biceps||dumbbell|elbow-flexion,supported|Sit and brace the elbow against the inner thigh, then curl the weight up.",
+        "Triceps Kickback|isolation|triceps||dumbbell,cable|elbow-extension|Hinge forward, keep the upper arm by your side and straighten the elbow.",
+        "Battle Rope Waves|isolation|front-delts,core|forearms|battle-rope|explosive,grip-intensive|Stand in a half squat and whip the ropes up and down in fast alternating waves.",
     };
+
+    /** Newer bases that should not get a "Single-Arm Cable" variant (already one-sided or two-tower moves). */
+    private static final Set<String> NO_SINGLE_ARM = Set.of("Cable Crossover", "Glute Kickback");
 
     private static final Map<String, String> EQUIPMENT_LABEL = new LinkedHashMap<>();
     static {
@@ -261,7 +271,8 @@ public final class ExerciseCatalogGenerator {
                 add(out, names, seq, "Paused " + displayName(b.name(), first), b, first, paused,
                         "Pause for two seconds in the hardest position of the lift.");
             }
-            if (b.pattern().equals("isolation") && b.equipment().contains("cable") && !b.name().startsWith("Single")) {
+            if (b.pattern().equals("isolation") && b.equipment().contains("cable") && !b.name().startsWith("Single")
+                    && !NO_SINGLE_ARM.contains(b.name())) {
                 List<String> tags = new ArrayList<>(tagsFor(b.rawTags(), "cable"));
                 tags.add("unilateral");
                 add(out, names, seq, "Single-Arm Cable " + b.name(), b, "cable", tags,

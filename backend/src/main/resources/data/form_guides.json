@@ -1,0 +1,166 @@
+{
+  "_note": "Synthetic, general-purpose coaching cues written for this project. Not clinically sourced; not medical advice.",
+  "rules": [
+    ["leg press", "legpress"], ["hack squat", "squat"], ["calf raise", "calf"],
+    ["leg extension", "legext"], ["terminal knee", "legext"], ["leg curl", "legcurl"], ["nordic", "hinge"],
+    ["hip thrust", "hipthrust"], ["glute bridge", "hipthrust"], ["glute kickback", "glutekick"], ["reverse hyper", "glutekick"],
+    ["hip adduction", "hipmachine"], ["hip abduction", "hipmachine"], ["copenhagen", "plank"],
+    ["box jump", "jump"], ["jump squat", "jump"], ["burpee", "jump"], ["jump rope", "jump"],
+    ["stair climber", "stepup"], ["step-up", "stepup"], ["lunge", "lunge"], ["split squat", "lunge"],
+    ["bike", "cycle"], ["elliptical", "walk"], ["treadmill run", "run"], ["treadmill", "walk"], ["rowing machine", "rowing"],
+    ["wall sit", "squat"], ["squat", "squat"],
+    ["deadlift", "hinge"], ["good morning", "hinge"], ["rack pull", "hinge"], ["pull-through", "hinge"], ["back extension", "hinge"],
+    ["swing", "swing"],
+    ["bench press", "bench"], ["floor press", "bench"], ["skull crusher", "extension"], ["chest press", "chestpress"],
+    ["push-up", "pushup"], ["dip", "dip"],
+    ["overhead triceps", "extension"], ["overhead carry", "carry"], ["overhead press", "overhead"], ["arnold", "overhead"], ["push press", "overhead"],
+    ["behind-the-neck", "overhead"], ["landmine press", "overhead"],
+    ["lateral raise", "raise"], ["front raise", "frontraise"], ["upright row", "shrug"], ["shrug", "shrug"],
+    ["pec deck", "fly"], ["crossover", "fly"], ["chest fly", "fly"], ["reverse fly", "row"], ["face pull", "seatedrow"],
+    ["lat pulldown", "pulldown"], ["straight-arm", "pulldown"], ["pull-up", "pullup"], ["chin-up", "pullup"], ["hanging leg", "pullup"],
+    ["twist", "twist"], ["woodchop", "twist"], ["pallof", "twist"], ["rotation", "twist"], ["throw", "twist"],
+    ["seated cable row", "seatedrow"], ["chest-supported", "seatedrow"], ["row", "row"],
+    ["pushdown", "pushdown"], ["triceps kickback", "pushdown"], ["triceps extension", "extension"],
+    ["curl", "curl"],
+    ["plank", "plank"], ["bird dog", "plank"], ["mountain climber", "plank"], ["ab wheel", "plank"],
+    ["dead bug", "crunch"], ["hollow", "crunch"], ["crunch", "crunch"], ["sit-up", "crunch"],
+    ["battle rope", "waves"], ["carry", "carry"], ["sled", "carry"]
+  ],
+  "patternDefault": {
+    "push": "chestpress", "pull": "row", "hinge": "hinge", "squat": "squat",
+    "carry": "carry", "rotation": "twist", "isolation": "curl"
+  },
+  "motions": {
+    "squat": ["Squat", "squat"], "lunge": ["Lunge", "lunge"], "stepup": ["Step-up", "lunge"],
+    "legpress": ["Leg press", "legmachine"], "legext": ["Leg extension", "legmachine"], "legcurl": ["Leg curl", "legmachine"],
+    "hipmachine": ["Hip machine", "legmachine"], "calf": ["Calf raise", "calf"],
+    "hinge": ["Hip hinge", "hinge"], "swing": ["Kettlebell swing", "hinge"],
+    "hipthrust": ["Hip thrust", "glute"], "glutekick": ["Glute kickback", "glute"],
+    "jump": ["Jump", "jump"],
+    "bench": ["Lying press", "press"], "chestpress": ["Chest press", "press"], "pushup": ["Push-up", "bodypress"], "dip": ["Dip", "bodypress"],
+    "overhead": ["Overhead press", "overhead"],
+    "raise": ["Side raise", "raise"], "frontraise": ["Front raise", "raise"], "fly": ["Chest fly", "raise"], "shrug": ["Shrug", "raise"],
+    "row": ["Bent-over row", "row"], "seatedrow": ["Seated row", "row"],
+    "pulldown": ["Pulldown", "vertical"], "pullup": ["Pull-up", "vertical"],
+    "curl": ["Curl", "curl"], "pushdown": ["Triceps pushdown", "triceps"], "extension": ["Triceps extension", "triceps"],
+    "plank": ["Plank", "core"], "crunch": ["Crunch", "core"], "twist": ["Rotation", "rotation"],
+    "carry": ["Loaded carry", "carry"], "walk": ["Walk", "cardio"], "run": ["Run", "cardio"], "cycle": ["Cycle", "cardio"],
+    "rowing": ["Rowing stroke", "cardio"], "waves": ["Rope waves", "jump"]
+  },
+  "families": {
+    "squat": {
+      "cues": ["Feet about shoulder-width, toes turned out slightly", "Brace your stomach like you're about to be poked", "Knees travel in the same direction as your toes", "Keep your chest proud and your whole foot on the floor"],
+      "mistakes": ["Knees caving inward", "Heels lifting off the floor", "Rounding the lower back at the bottom"],
+      "breathing": "Breathe in at the top, hold it on the way down, breathe out as you stand up.",
+      "tempo": "Down 2 s · up 1 s", "dose": "3 sets of 8–10 reps"
+    },
+    "lunge": {
+      "cues": ["Take a long enough step that both knees can bend to about 90°", "Keep your torso tall", "Push through the front heel to come up", "Hold something for balance if you need to"],
+      "mistakes": ["Front knee collapsing inward", "Leaning far forward", "Slamming the back knee into the floor"],
+      "breathing": "Breathe in as you lower, breathe out as you push back up.",
+      "tempo": "Down 2 s · up 1 s", "dose": "2–3 sets of 8 reps per leg"
+    },
+    "legmachine": {
+      "cues": ["Adjust the seat so the joint lines up with the machine's pivot", "Sit all the way back against the pad", "Move smoothly. Don't let the weights crash", "Start light: the stack is easy to adjust"],
+      "mistakes": ["Locking the knees hard at the end", "Lifting your hips off the seat", "Bouncing out of the bottom"],
+      "breathing": "Breathe out as you push, breathe in as you return.",
+      "tempo": "Push 1 s · return 2 s", "dose": "3 sets of 10–12 reps"
+    },
+    "calf": {
+      "cues": ["Balls of the feet on the edge of the step", "Rise as high as you can and pause", "Lower slowly until you feel a stretch"],
+      "mistakes": ["Bouncing quickly", "Bending the knees to cheat"],
+      "breathing": "Breathe out going up, in coming down.",
+      "tempo": "Up 1 s · pause 1 s · down 2 s", "dose": "3 sets of 12–15 reps"
+    },
+    "hinge": {
+      "cues": ["Push your hips back like closing a car door with your bum", "Keep the weight close to your legs", "Back flat from head to hips", "Stand up by squeezing your glutes"],
+      "mistakes": ["Rounding the lower back", "Turning it into a squat by bending the knees too much", "Leaning back at the top"],
+      "breathing": "Big breath and brace before each rep; breathe out at the top.",
+      "tempo": "Down 2 s · up 1 s", "dose": "3 sets of 6–8 reps"
+    },
+    "glute": {
+      "cues": ["Tuck your chin and keep your ribs down", "Drive through the heels", "Squeeze your glutes hard at the top for a second"],
+      "mistakes": ["Arching the lower back instead of using the hips", "Pushing through the toes"],
+      "breathing": "Breathe out as the hips rise, in as they lower.",
+      "tempo": "Up 1 s · hold 1 s · down 2 s", "dose": "3 sets of 10–12 reps"
+    },
+    "jump": {
+      "cues": ["Land softly and quietly on the balls of your feet", "Knees bend as you land", "Rest fully between sets: quality over quantity"],
+      "mistakes": ["Landing with straight legs", "Knees caving in on landing", "Doing it while tired"],
+      "breathing": "Quick breath out on each effort.",
+      "tempo": "Explosive up · soft landing", "dose": "3 sets of 5–8 reps"
+    },
+    "press": {
+      "cues": ["Shoulder blades pulled back and down into the pad", "Feet flat on the floor", "Lower to the middle of your chest", "Elbows at about 45° from your body, not flared"],
+      "mistakes": ["Bouncing the bar off your chest", "Lifting your bum off the bench", "Elbows flared straight out"],
+      "breathing": "Breathe in on the way down, breathe out as you press.",
+      "tempo": "Down 2 s · up 1 s", "dose": "3 sets of 8–10 reps"
+    },
+    "bodypress": {
+      "cues": ["Body in a straight line from head to heels", "Hands just outside shoulder-width", "Lower until your chest is close to the floor (or elbows at 90°)"],
+      "mistakes": ["Hips sagging", "Head poking forward", "Going lower than your shoulders are comfortable with"],
+      "breathing": "Breathe in going down, out as you push up.",
+      "tempo": "Down 2 s · up 1 s", "dose": "3 sets of as many good reps as you can (stop 2 before failure)"
+    },
+    "overhead": {
+      "cues": ["Squeeze your glutes and brace your stomach", "Press straight up and finish with arms by your ears", "Move your head back slightly to let the weight pass"],
+      "mistakes": ["Arching the lower back", "Pressing forward instead of up", "Shrugging hard at the bottom"],
+      "breathing": "Breathe in at the bottom, out as you press.",
+      "tempo": "Up 1 s · down 2 s", "dose": "3 sets of 8–10 reps"
+    },
+    "raise": {
+      "cues": ["Use a light weight: these muscles are small", "Slight bend in the elbows the whole time", "Lift with control and stop at shoulder height"],
+      "mistakes": ["Swinging the body", "Shrugging up to the ears", "Going too heavy"],
+      "breathing": "Breathe out as you lift, in as you lower.",
+      "tempo": "Up 1 s · down 2 s", "dose": "3 sets of 12–15 reps"
+    },
+    "row": {
+      "cues": ["Pull your elbows back toward your hips", "Squeeze your shoulder blades together at the end", "Keep your chest up and back flat"],
+      "mistakes": ["Jerking the weight with your lower back", "Shrugging the shoulders", "Rounding forward at the end"],
+      "breathing": "Breathe out as you pull, in as you return.",
+      "tempo": "Pull 1 s · squeeze 1 s · return 2 s", "dose": "3 sets of 10–12 reps"
+    },
+    "vertical": {
+      "cues": ["Start by pulling your shoulders down, away from your ears", "Drive your elbows down to your sides", "Bring your chest toward the bar"],
+      "mistakes": ["Swinging or kicking", "Pulling the bar behind the neck", "Letting the shoulders shrug up at the bottom"],
+      "breathing": "Breathe out as you pull, in as you lower.",
+      "tempo": "Pull 1 s · lower 2 s", "dose": "3 sets of 8–10 reps (use assistance if needed)"
+    },
+    "curl": {
+      "cues": ["Elbows stay pinned at your sides", "Curl up, squeeze, then lower slowly", "Stand tall, no leaning back"],
+      "mistakes": ["Swinging the weight with your back", "Elbows drifting forward", "Dropping the weight quickly"],
+      "breathing": "Breathe out as you curl, in as you lower.",
+      "tempo": "Up 1 s · down 2 s", "dose": "3 sets of 10–12 reps"
+    },
+    "triceps": {
+      "cues": ["Upper arms stay still: only the elbows move", "Straighten the arm fully and squeeze", "Control the way back"],
+      "mistakes": ["Elbows flaring out", "Using your body weight to push", "Going so heavy the shoulders take over"],
+      "breathing": "Breathe out as you straighten, in as you bend.",
+      "tempo": "Extend 1 s · return 2 s", "dose": "3 sets of 10–12 reps"
+    },
+    "core": {
+      "cues": ["Ribs pulled down toward your hips", "Lower back stays neutral, not arched", "Move slowly; it's about control, not speed"],
+      "mistakes": ["Holding your breath", "Pulling on your neck", "Hips sagging or piking"],
+      "breathing": "Keep breathing steadily; breathe out on the hardest part.",
+      "tempo": "Slow and controlled", "dose": "3 sets of 20–30 s holds or 10–12 reps"
+    },
+    "rotation": {
+      "cues": ["Turn from your upper back while the hips stay steady", "Arms stay long", "Move smoothly from side to side"],
+      "mistakes": ["Twisting fast with momentum", "Rounding the back"],
+      "breathing": "Breathe out as you turn.",
+      "tempo": "Turn 1 s · return 2 s", "dose": "3 sets of 8–10 per side"
+    },
+    "carry": {
+      "cues": ["Stand tall like a string pulls your head up", "Short, steady steps", "Shoulders down, grip tight"],
+      "mistakes": ["Leaning to one side", "Shrugging the shoulders"],
+      "breathing": "Short, steady breaths while you stay braced.",
+      "tempo": "Steady walking pace", "dose": "3 walks of 20–30 m"
+    },
+    "cardio": {
+      "cues": ["Start with 5 minutes easy to warm up", "You should still be able to talk in short sentences", "Stand or sit tall, relaxed shoulders"],
+      "mistakes": ["Holding onto the rails the whole time", "Starting too fast", "Skipping the cool-down"],
+      "breathing": "Breathe rhythmically through the nose and mouth.",
+      "tempo": "Easy, steady rhythm", "dose": "10–20 minutes at an easy-moderate pace"
+    }
+  }
+}
