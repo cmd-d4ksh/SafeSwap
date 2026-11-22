@@ -1,5 +1,6 @@
 // Frontend only renders what the Java API returns. No search/safety logic lives here.
-const API = new URLSearchParams(location.search).get('api') || 'http://localhost:8085';
+const API = new URLSearchParams(location.search).get('api')
+  || (location.port === '5173' || location.protocol === 'file:' ? 'http://localhost:8085' : ''); // same origin when the Java server hosts the site
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 

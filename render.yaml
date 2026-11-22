@@ -1,0 +1,7 @@
+# Render blueprint: New + > Blueprint > pick this repo. Free plan, built from the Dockerfile.
+services:
+  - type: web
+    name: safeswap
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health

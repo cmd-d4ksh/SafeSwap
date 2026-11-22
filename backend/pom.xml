@@ -39,6 +39,15 @@
     </dependencies>
 
     <build>
+        <!-- The website is packaged into the jar (served at /), so one Java process runs the whole app. -->
+        <resources>
+            <resource><directory>src/main/resources</directory></resource>
+            <resource>
+                <directory>../frontend</directory>
+                <targetPath>static</targetPath>
+                <excludes><exclude>server.js</exclude></excludes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

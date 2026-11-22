@@ -34,6 +34,18 @@ The original form-based UI with the full method tables is kept as **`classic.htm
 
 ---
 
+## Deploy (one free web service on Render)
+
+The Spring Boot jar also serves the website (the `frontend/` folder is packaged into it), so the whole app is one service on one URL. There are no secrets to configure.
+
+1. Sign in at https://render.com with GitHub.
+2. **New + → Blueprint**, pick the `SafeSwap` repository, and confirm. Render reads `render.yaml` and builds the `Dockerfile` (about 5 minutes).
+3. Open the `https://safeswap-….onrender.com` URL it gives you.
+
+The free plan sleeps after 15 minutes without traffic; the first visit after that takes about a minute to wake up. Open the link a minute before a demo. Anyone with the link can use **Upload your own data**, so press **Restore the built-in list** if someone changes it.
+
+To run the same single-jar setup locally: `cd backend && mvn -DskipTests package && java -jar target/exercise-substitution-1.0.0.jar`, then open http://localhost:8085.
+
 ## Project documents
 
 - `docs/PROPOSAL.md`: project proposal (problem, users, techniques, data, measurable success criteria)

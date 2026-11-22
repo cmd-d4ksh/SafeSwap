@@ -13,7 +13,8 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { makeRig, animate, createCoach } from './rig.js';
 
-const API = new URLSearchParams(location.search).get('api') || 'http://localhost:8085';
+const API = new URLSearchParams(location.search).get('api')
+  || (location.port === '5173' || location.protocol === 'file:' ? 'http://localhost:8085' : ''); // same origin when the Java server hosts the site
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const body = $('#panelBody');
