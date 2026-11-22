@@ -1,0 +1,136 @@
+[
+  {
+    "tag": "lower-back-strain",
+    "name": "Lower-back (lumbar) strain",
+    "description": "Acute or recovering strain of the lumbar muscles.",
+    "guidance": "Avoid axial loading and loaded spinal flexion/rotation; favour supported and spine-neutral work.",
+    "contraindications": [
+      {"kind": "TAG", "value": "axial-loading", "reason": "Axial (spinal compressive) loading aggravates lumbar strain."},
+      {"kind": "TAG", "value": "spinal-load-heavy", "reason": "Heavy spinal loading should be avoided until pain-free."},
+      {"kind": "TAG", "value": "spinal-shear-load", "reason": "Hip-hinge shear forces stress the injured lumbar tissue."},
+      {"kind": "TAG", "value": "spinal-flexion-loaded", "reason": "Loaded spinal flexion increases lumbar strain."},
+      {"kind": "TAG", "value": "spinal-rotation-loaded", "reason": "Loaded rotation through the lumbar spine is a common aggravator."},
+      {"kind": "TAG", "value": "hinged-torso-loaded", "reason": "Holding a loaded hinged torso demands high lumbar extensor effort."},
+      {"kind": "TAG", "value": "lumbar-extension-stress", "reason": "Long-lever anti-extension loads the lumbar spine heavily."}
+    ]
+  },
+  {
+    "tag": "shoulder-impingement",
+    "name": "Shoulder impingement",
+    "description": "Pain when raising the arm, typically subacromial impingement.",
+    "guidance": "Avoid overhead pressing and internally rotated elevation; prefer landmine/angled pressing below shoulder height.",
+    "contraindications": [
+      {"kind": "TAG", "value": "overhead", "reason": "Overhead positions narrow the subacromial space."},
+      {"kind": "TAG", "value": "behind-neck", "reason": "Behind-the-neck positions combine abduction and external rotation at end range."},
+      {"kind": "TAG", "value": "internal-rotation-loaded", "reason": "Loaded internal rotation with elevation (upright row) is a classic impingement position."},
+      {"kind": "TAG", "value": "impingement-position", "reason": "Movement places the shoulder in the impingement arc under load."},
+      {"kind": "TAG", "value": "hanging", "reason": "Full overhead hanging loads the irritated shoulder at end range."}
+    ]
+  },
+  {
+    "tag": "rotator-cuff-tendinopathy",
+    "name": "Rotator cuff tendinopathy",
+    "description": "Overuse irritation of the rotator cuff tendons.",
+    "guidance": "Avoid end-range and overhead loading; keep pressing and pulling in mid-range.",
+    "contraindications": [
+      {"kind": "TAG", "value": "overhead", "reason": "Overhead loading compresses the irritated cuff tendons."},
+      {"kind": "TAG", "value": "end-range-shoulder-extension", "reason": "Deep shoulder extension (dips) stresses the anterior cuff."},
+      {"kind": "TAG", "value": "deep-shoulder-stretch-loaded", "reason": "Loaded end-range stretch (deep flyes) strains the cuff."},
+      {"kind": "TAG", "value": "behind-neck", "reason": "End-range external rotation under load."}
+    ]
+  },
+  {
+    "tag": "patellar-tendinopathy",
+    "name": "Patellar tendinopathy (jumper's knee)",
+    "description": "Load-related pain at the patellar tendon below the kneecap.",
+    "guidance": "Avoid deep knee flexion under load and plyometrics; isometrics (wall sit, Spanish squat) are usually tolerated.",
+    "contraindications": [
+      {"kind": "TAG", "value": "deep-knee-flexion-loaded", "reason": "Deep knee flexion under load spikes patellar tendon stress."},
+      {"kind": "TAG", "value": "plyometric", "reason": "Jumping and landing are the highest patellar tendon loads."},
+      {"kind": "TAG", "value": "knee-shear", "reason": "Knee-forward shear positions overload the tendon."},
+      {"kind": "TAG", "value": "open-chain-knee-extension", "reason": "Heavy open-chain extension loads the tendon near full flexion."}
+    ]
+  },
+  {
+    "tag": "ankle-sprain",
+    "name": "Ankle sprain (lateral)",
+    "description": "Recovering inversion sprain of the lateral ankle ligaments.",
+    "guidance": "Avoid impact and unstable single-leg balance under load; seated, supported and low-impact work is fine.",
+    "contraindications": [
+      {"kind": "TAG", "value": "high-impact", "reason": "Impact loading risks re-injury of healing ligaments."},
+      {"kind": "TAG", "value": "plyometric", "reason": "Landing mechanics stress the sprained ankle."},
+      {"kind": "TAG", "value": "single-leg-balance", "reason": "Loaded single-leg balance on an unstable ankle risks re-inversion."},
+      {"kind": "EQUIPMENT", "value": "jump-rope", "reason": "Repetitive bouncing on the forefoot."}
+    ]
+  },
+  {
+    "tag": "hamstring-strain",
+    "name": "Hamstring strain",
+    "description": "Grade I–II strain of the hamstring muscle group.",
+    "guidance": "Avoid loaded lengthening and explosive hip extension early on; bridges and supported hip extension are usually tolerated.",
+    "contraindications": [
+      {"kind": "TAG", "value": "loaded-hamstring-stretch", "reason": "Loading the hamstring in a lengthened position can re-tear healing fibres."},
+      {"kind": "TAG", "value": "eccentric-hamstring-high", "reason": "Maximal eccentric hamstring load is too high for an acute strain."},
+      {"kind": "TAG", "value": "explosive", "reason": "Explosive/ballistic movements create sudden hamstring tension."}
+    ]
+  },
+  {
+    "tag": "tennis-elbow",
+    "name": "Lateral epicondylalgia (tennis elbow)",
+    "description": "Pain at the outside of the elbow from wrist-extensor overload.",
+    "guidance": "Avoid heavy gripping and loaded wrist extension; neutral-grip and machine work is preferred.",
+    "contraindications": [
+      {"kind": "TAG", "value": "grip-intensive", "reason": "Sustained heavy gripping loads the common extensor tendon."},
+      {"kind": "TAG", "value": "wrist-extension-load", "reason": "Loaded wrist extension directly stresses the lateral epicondyle."}
+    ]
+  },
+  {
+    "tag": "wrist-sprain",
+    "name": "Wrist sprain",
+    "description": "Sprain of the wrist ligaments, painful in extension and weight bearing.",
+    "guidance": "Avoid weight bearing through an extended wrist; use handles, straps, or machines.",
+    "contraindications": [
+      {"kind": "TAG", "value": "wrist-weight-bearing", "reason": "Body weight through an extended wrist stresses the sprained ligaments."},
+      {"kind": "TAG", "value": "wrist-extension-load", "reason": "Loaded wrist extension aggravates the sprain."},
+      {"kind": "TAG", "value": "wrist-flexion-load", "reason": "Loaded wrist flexion under resistance."}
+    ]
+  },
+  {
+    "tag": "neck-strain",
+    "name": "Neck (cervical) strain",
+    "description": "Strain of the cervical muscles.",
+    "guidance": "Avoid loads through the head/neck and heavy shrugging; keep the neck neutral.",
+    "contraindications": [
+      {"kind": "TAG", "value": "cervical-load", "reason": "Direct load or pulling through the cervical spine."},
+      {"kind": "TAG", "value": "behind-neck", "reason": "Forces the neck into forward flexion under load."}
+    ]
+  },
+  {
+    "tag": "hip-impingement",
+    "name": "Hip impingement (FAI)",
+    "description": "Femoroacetabular impingement — pinching in deep hip flexion.",
+    "guidance": "Avoid loaded deep hip flexion; limit squat depth and prefer hip-extension-dominant work.",
+    "contraindications": [
+      {"kind": "TAG", "value": "deep-hip-flexion-loaded", "reason": "Loaded deep hip flexion pinches the femoral neck against the acetabulum."}
+    ]
+  },
+  {
+    "tag": "groin-strain",
+    "name": "Groin (adductor) strain",
+    "description": "Strain of the hip adductor group.",
+    "guidance": "Avoid heavy adductor loading early; progress gradually.",
+    "contraindications": [
+      {"kind": "TAG", "value": "groin-load-high", "reason": "Long-lever adductor isometrics are too demanding early after a strain."},
+      {"kind": "TAG", "value": "groin-load", "reason": "Direct resisted adduction loads the strained tissue."}
+    ]
+  },
+  {
+    "tag": "finger-pulley-strain",
+    "name": "Finger pulley strain (climbers)",
+    "description": "A2/A4 pulley strain — only crimp-grip loading is contraindicated, which no gym exercise in this catalog uses.",
+    "guidance": "Avoid crimp-grip hangs; ordinary gym training is generally unaffected.",
+    "contraindications": [
+      {"kind": "TAG", "value": "crimp-grip", "reason": "Crimp grip loads the finger pulleys maximally."}
+    ]
+  }
+]
