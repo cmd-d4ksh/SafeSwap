@@ -172,6 +172,34 @@ class ApiIntegrationTest {
     }
 
     @Test
+    void uploadValidatesReplacesAndResetsTheCatalog() throws Exception {
+        try {
+            mvc.perform(post("/api/catalog").contentType(MediaType.APPLICATION_JSON).content("[]"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code", is("CATALOG_UPLOAD_EMPTY")));
+            String rows = "[" +
+                    "{\"id\":\"U1\",\"name\":\"Goblet Squat\",\"primaryMuscles\":[\"quads\"],\"secondaryMuscles\":[],\"equipment\":[\"dumbbell\"],\"movementPattern\":\"squat\",\"tags\":[\"deep-knee-flexion-loaded\"],\"instructions\":\"Hold the weight at the chest and squat down.\"}," +
+                    "{\"id\":\"U2\",\"name\":\"goblet squat\",\"primaryMuscles\":[\"quads\"],\"secondaryMuscles\":[],\"equipment\":[\"dumbbell\"],\"movementPattern\":\"squat\",\"tags\":[],\"instructions\":\"Duplicate name.\"}," +
+                    "{\"id\":\"U3\",\"name\":\"Wall Sit\",\"primaryMuscles\":[\"quads\"],\"secondaryMuscles\":[],\"equipment\":[\"bodyweight\"],\"movementPattern\":\"squat\",\"tags\":[\"isometric\",\"knee-friendly\"],\"instructions\":\"Slide down the wall and hold.\"}," +
+                    "{\"id\":\"U4\",\"name\":\"Broken Row\",\"primaryMuscles\":[],\"secondaryMuscles\":[],\"equipment\":[\"cable\"],\"movementPattern\":\"fly-ing\",\"tags\":[],\"instructions\":\"x\"}]";
+            mvc.perform(post("/api/catalog").param("name", "test upload").contentType(MediaType.APPLICATION_JSON).content(rows))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.exercises", is(2)))
+                    .andExpect(jsonPath("$.source", is("test upload")))
+                    .andExpect(jsonPath("$.loadReport.duplicates", hasSize(1)))
+                    .andExpect(jsonPath("$.loadReport.invalid", hasSize(1)));
+            mvc.perform(post("/api/substitutions").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"exercise\":\"Goblet Squat\",\"injuryTag\":\"patellar-tendinopathy\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.target.unsafeForInjury", is(true)))
+                    .andExpect(jsonPath("$.results[0].name", is("Wall Sit")));
+        } finally {
+            mvc.perform(post("/api/catalog/reset")).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.exercises", greaterThan(200)));
+        }
+    }
+
+    @Test
     void textSearchUsesKmp() throws Exception {
         mvc.perform(get("/api/exercises/text-search").param("q", "neutral spine"))
                 .andExpect(status().isOk())

@@ -104,4 +104,43 @@ public class CatalogService {
     }
 
     public Snapshot snapshot() { return snapshot; }
+
+    private volatile String source = "sample data (src/main/resources/data/exercises.json)";
+
+    public String source() { return source; }
+
+    /**
+     * Replaces the active catalog with user-uploaded rows (same validation as the sample file:
+     * duplicates and invalid rows are rejected and reported). The injury rules are kept. Every
+     * index (tries, Bloom filter, gym stations) is rebuilt from the new snapshot. An upload in
+     * which no row survives validation is refused and the current catalog stays active.
+     */
+    public synchronized Snapshot replaceCatalog(List<RawExercise> rows, String label) {
+        if (rows == null) {
+            throw com.exsub.error.ApiException.badRequest("CATALOG_BODY_REQUIRED", "Send a JSON array of exercises.", List.of());
+        }
+        if (rows.size() > 100_000) {
+            throw com.exsub.error.ApiException.badRequest("CATALOG_TOO_LARGE", "At most 100,000 rows per upload.", List.of());
+        }
+        long t0 = System.currentTimeMillis();
+        Snapshot next = build(rows, new ArrayList<>(snapshot.rules().rules()), bloomFpp, null, 0);
+        if (next.catalog().isEmpty()) {
+            List<String> why = new ArrayList<>(next.report().invalid());
+            why.addAll(next.report().duplicates());
+            throw com.exsub.error.ApiException.badRequest("CATALOG_UPLOAD_EMPTY",
+                    rows.isEmpty() ? "The uploaded dataset is empty; the current catalog was kept."
+                            : "No row passed validation; the current catalog was kept.",
+                    why.size() > 20 ? why.subList(0, 20) : why);
+        }
+        snapshot = next;
+        source = label == null || label.isBlank() ? "uploaded dataset" : label;
+        log.info("Catalog replaced by upload '{}': {} accepted in {} ms", source, next.catalog().size(), System.currentTimeMillis() - t0);
+        return next;
+    }
+
+    /** Restores the shipped sample data. */
+    public synchronized void reset() {
+        load();
+        source = "sample data (src/main/resources/data/exercises.json)";
+    }
 }

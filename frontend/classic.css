@@ -60,3 +60,4 @@ footer { padding: 16px; }
   #resultsTable th:nth-child(4), #resultsTable td:nth-child(4) { display: none; }
   table { font-size: .82rem; }
 }
+.ok { color: var(--ok); } .bad { color: var(--bad); }

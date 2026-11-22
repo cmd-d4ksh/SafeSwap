@@ -81,6 +81,18 @@
     <div id="exploreOut"></div>
   </section>
 
+  <section class="card" id="upload">
+    <h2>Use your own dataset</h2>
+    <p class="muted small">Upload a JSON array of exercises (same fields as <code>backend/src/main/resources/data/exercises.json</code>: id, name, primaryMuscles, secondaryMuscles, equipment, movementPattern, tags, instructions).
+      The server validates it (empty file, duplicates, invalid rows), rebuilds the tries and the Bloom filter, and every page then uses it. Injury rules stay the same.</p>
+    <input type="file" id="dataFile" accept=".json,application/json" aria-label="Exercise dataset JSON file">
+    <div class="row" style="margin-top:10px;gap:8px;display:flex;flex-wrap:wrap">
+      <button id="uploadBtn" type="button">Upload and use this dataset</button>
+      <button id="resetBtn" type="button">Restore sample data</button>
+    </div>
+    <div id="uploadResult" class="small" style="margin-top:10px"></div>
+  </section>
+
   <section class="card">
     <h2>Catalog &amp; Bloom filter stats</h2>
     <div id="stats" class="muted">Loading…</div>

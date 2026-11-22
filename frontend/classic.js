@@ -199,6 +199,7 @@ async function loadStats() {
     const s = await api('/api/catalog/stats');
     const b = s.bloomFilter;
     $('stats').innerHTML = `
+      <p>Active dataset: <strong>${esc(s.source || 'sample data')}</strong>.</p>
       <p>${s.exercises} exercises loaded (${s.loadReport.rowsRead} rows read, ${s.loadReport.duplicates.length} duplicate(s) and ${s.loadReport.invalid.length} invalid row(s) rejected).
       Name trie: ${s.nameTrie.keys.toLocaleString()} keys / ${s.nameTrie.nodes.toLocaleString()} nodes. Tag trie: ${s.tagTrie.keys} keys / ${s.tagTrie.nodes} nodes.</p>
       <p>Bloom filter over ${b.insertedPairs_n} contraindicated (exercise, injury) pairs: m = ${b.bits_m.toLocaleString()} bits (${b.memoryBytes} bytes), k = ${b.hashFunctions_k},
@@ -209,6 +210,29 @@ async function loadStats() {
     $('stats').textContent = 'Stats unavailable.';
   }
 }
+
+// ---------- upload your own dataset (validated + indexed by the Java backend) ----------
+$('uploadBtn').addEventListener('click', async () => {
+  const out = $('uploadResult');
+  const f = $('dataFile').files[0];
+  if (!f) { out.innerHTML = '<span class="bad">Choose a .json file first.</span>'; return; }
+  let rows;
+  try { rows = JSON.parse(await f.text()); } catch (e) { out.innerHTML = `<span class="bad">That file is not valid JSON: ${esc(e.message)}</span>`; return; }
+  out.textContent = 'Uploading and indexing…';
+  try {
+    const s = await api(`/api/catalog?name=${encodeURIComponent(f.name)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rows) });
+    const r = s.loadReport;
+    out.innerHTML = `<span class="ok">Now using <strong>${esc(f.name)}</strong>: ${s.exercises} exercises accepted out of ${r.rowsRead} rows; Bloom filter rebuilt (m = ${s.bloomFilter.bits_m}, k = ${s.bloomFilter.hashFunctions_k}).</span>
+      ${r.duplicates.length || r.invalid.length ? `<ul>${[...r.duplicates, ...r.invalid].slice(0, 15).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}`;
+    loadStats();
+  } catch (e) {
+    out.innerHTML = `<span class="bad">${esc(e.message)}</span>${e.hints && e.hints.length ? `<ul>${e.hints.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}`;
+  }
+});
+$('resetBtn').addEventListener('click', async () => {
+  try { await api('/api/catalog/reset', { method: 'POST' }); $('uploadResult').innerHTML = '<span class="ok">Sample data restored.</span>'; loadStats(); }
+  catch (e) { $('uploadResult').innerHTML = `<span class="bad">${esc(e.message)}</span>`; }
+});
 
 loadInjuries();
 loadStats();

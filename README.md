@@ -31,6 +31,13 @@ The original form-based UI with the full method tables is kept as **`classic.htm
 
 ---
 
+## Project documents
+
+- `docs/PROPOSAL.md`: project proposal (problem, users, techniques, data, measurable success criteria)
+- `docs/REPORT.md`: technical report
+- `docs/VIVA_PREP.md`: viva preparation and demo script
+- `docs/benchmark_results.md` / `.csv` and `docs/charts/*.svg`: benchmark tables and charts (`python3 docs/charts/make_charts.py` regenerates the charts)
+
 ## Repository layout
 
 ```
@@ -174,6 +181,8 @@ echo "[]" > /tmp/empty.json && EXSUB_DATA_EXERCISESPATH=file:/tmp/empty.json mvn
 | GET | `/api/gym/stations` | The 15 gym stations with zone and exercise counts |
 | GET | `/api/gym/stations/{id}/exercises` | Exercises at one station. Placement uses **Trie** lookups: exact tag-trie matches on equipment, plus name-trie word-prefix matches on station keywords (e.g. `leg press`) |
 | GET | `/api/gym/locate?ids=EX0001,EX0187` | Which station each exercise is done at (used to highlight swaps in the 3D gym) |
+| POST | `/api/catalog?name=my.json` | Upload your own exercise dataset (JSON array); validated (empty / duplicates / invalid rows) and indexed on the server. Also available in the classic view (**Upload your own data**) |
+| POST | `/api/catalog/reset` | Restore the shipped sample data |
 | POST | `/api/plans` | `{"injuryTag":"patellar-tendinopathy","daysPerWeek":3}` → safe beginner weekly plan (2–4 days); every exercise passes Bloom + rule confirmation; includes doses, stations and an avoid list |
 | GET | `/api/exercises/{id}/guide` | Form guide: demo motion (chosen by KMP keyword rules), steps, do/avoid cues, breathing, tempo, beginner dose |
 | GET | `/api/catalog/stats` | Load report (duplicates/invalid rows), trie sizes, Bloom m/k/n, theoretical and **measured** FPP |
@@ -286,6 +295,6 @@ Capture these with the backend and frontend running:
 6. `docs/screenshots/03-rejected.png`: the expanded "Rejected candidates" list, with confirmed rule reasons.
 7. `docs/screenshots/04-error.png`: submit just `Squat` (ambiguous → suggestions), or an unknown injury.
 8. `docs/screenshots/05-stats.png`: the catalog & Bloom filter stats card (duplicates rejected, measured FPP).
-9. `docs/screenshots/06-tests.png`: terminal output of `mvn test` (42 tests, BUILD SUCCESS).
+9. `docs/screenshots/06-tests.png`: terminal output of `mvn test` (43 tests, BUILD SUCCESS).
 
 See [`docs/REPORT.md`](docs/REPORT.md) for the technical report and [`docs/VIVA_PREP.md`](docs/VIVA_PREP.md) for viva preparation.

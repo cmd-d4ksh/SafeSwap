@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" font-family="Inter,Arial,sans-serif" font-size="12">
+<rect width="640" height="360" fill="#0f1216"/>
+<text x="70" y="28" fill="#f1f3f6" font-size="15" font-weight="700">Substitution request: Bloom pipeline vs rule-only</text>
+<line x1="70" x2="620" y1="300.0" y2="300.0" stroke="#262b33"/><text x="62" y="304.0" fill="#a8b0bb" text-anchor="end">10^1</text>
+<line x1="70" x2="620" y1="237.5" y2="237.5" stroke="#262b33"/><text x="62" y="241.5" fill="#a8b0bb" text-anchor="end">10^2</text>
+<line x1="70" x2="620" y1="175.0" y2="175.0" stroke="#262b33"/><text x="62" y="179.0" fill="#a8b0bb" text-anchor="end">10^3</text>
+<line x1="70" x2="620" y1="112.5" y2="112.5" stroke="#262b33"/><text x="62" y="116.5" fill="#a8b0bb" text-anchor="end">10^4</text>
+<line x1="70" x2="620" y1="50.0" y2="50.0" stroke="#262b33"/><text x="62" y="54.0" fill="#a8b0bb" text-anchor="end">10^5</text>
+<text x="70.0" y="318" fill="#a8b0bb" text-anchor="middle">100</text>
+<text x="273.8" y="318" fill="#a8b0bb" text-anchor="middle">1,000</text>
+<text x="477.6" y="318" fill="#a8b0bb" text-anchor="middle">10,000</text>
+<text x="620.0" y="318" fill="#a8b0bb" text-anchor="middle">50,000</text>
+<text x="345.0" y="348" fill="#a8b0bb" text-anchor="middle">input size (log scale)</text>
+<text x="16" y="175.0" fill="#a8b0bb" transform="rotate(-90 16 175.0)" text-anchor="middle">µs per request (log scale)</text>
+<polyline points="70.0,258.3 273.8,233.1 477.6,157.1 620.0,108.8" fill="none" stroke="#ff5a2c" stroke-width="2.5"/>
+<circle cx="70.0" cy="258.3" r="4" fill="#ff5a2c"/>
+<circle cx="273.8" cy="233.1" r="4" fill="#ff5a2c"/>
+<circle cx="477.6" cy="157.1" r="4" fill="#ff5a2c"/>
+<circle cx="620.0" cy="108.8" r="4" fill="#ff5a2c"/>
+<rect x="450" y="42" width="12" height="12" fill="#ff5a2c"/><text x="468" y="52" fill="#f1f3f6">Bloom pipeline</text>
+<polyline points="70.0,283.1 273.8,235.3 477.6,165.9 620.0,111.6" fill="none" stroke="#6ea8ff" stroke-width="2.5"/>
+<circle cx="70.0" cy="283.1" r="4" fill="#6ea8ff"/>
+<circle cx="273.8" cy="235.3" r="4" fill="#6ea8ff"/>
+<circle cx="477.6" cy="165.9" r="4" fill="#6ea8ff"/>
+<circle cx="620.0" cy="111.6" r="4" fill="#6ea8ff"/>
+<rect x="450" y="60" width="12" height="12" fill="#6ea8ff"/><text x="468" y="70" fill="#f1f3f6">Rule-only</text>
+</svg>

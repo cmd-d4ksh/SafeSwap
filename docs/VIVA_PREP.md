@@ -184,6 +184,9 @@ Duplicates in the data file are dropped at load and listed in `/api/catalog/stat
 **Q10a. Isn't the 3D gym just decoration? Where's the algorithm?**
 The 3D gym only replaces typing with pointing. Every list it shows comes from the backend: a station's exercises come from **trie** lookups (exact tag-trie matches on equipment, plus name-trie word-prefix matches on keywords like `leg press`), and the swaps come from the same `/api/substitutions` pipeline (trie → Bloom filter → rule confirmation → ranking). The browser holds no catalog and no rules. It was built for first-time gym-goers who don't know exercise names but can point at a machine and at where it hurts.
 
+**Q10d. The examiner gives us a new dataset. What happens?**
+Use **Upload your own data** (classic view) or `POST /api/catalog`. The Java loader validates every row (duplicates by normalised name or id, missing muscles, unknown movement pattern), reports what it rejected, rebuilds the tries, the contraindication set and a freshly sized Bloom filter, and every page uses the new catalog. An empty upload is refused with `CATALOG_UPLOAD_EMPTY` and the old catalog stays. **Restore sample data** resets it.
+
 **Q10c. How is the weekly plan built, and can it ever include something unsafe?**
 `POST /api/plans` screens all exercises for the injury: the Bloom filter clears most instantly, and every "maybe" is confirmed by the exact rule engine. Only exercises that pass go into a muscle-slot template (push/pull/legs etc.), ranked for beginners (machines and cables first). A test rebuilds plans for three injuries × 2–4 days and re-checks every planned exercise with the rule engine. If a muscle has no safe option, the slot is dropped, never filled with an unsafe exercise.
 
@@ -209,4 +212,4 @@ Hand-written: `Trie`, `KmpMatcher`, `BloomFilter`, `BitArray`, both hash functio
    * the **Rejected** list with confirmed reasons.
 6. Error states: submit `Squat` (ambiguous → suggestions), then an injury with zero contraindications (`finger-pulley-strain`), where nothing is rejected.
 7. Scroll to the stats card: m = 3,020, k = 7, measured FPP ≈ 1.51 %, 2 duplicate rows rejected at load.
-8. Terminal: run `mvn test` (42 green) and open `docs/benchmark_results.md`.
+8. Terminal: run `mvn test` (43 green) and open `docs/benchmark_results.md`.

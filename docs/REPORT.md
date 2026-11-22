@@ -19,6 +19,20 @@ The system takes **an exercise the user can't do** and **an injury/limitation ta
 
 **Target users:** gym-goers managing a minor injury, and trainers/physiotherapists who want a fast reference tool.
 
+**Objective and measurable success criteria** (from the proposal, `docs/PROPOSAL.md`), with the measured result:
+
+| # | Criterion | Target | Result |
+|---|---|---|---|
+| S1 | Unsafe exercises recommended | 0 | **0**: every plan (3 injuries × 2–4 days) and swap is re-checked against the exact rule engine in tests |
+| S2 | Bloom false negatives / positives accepted without confirmation | 0 / 0 | **0 / 0** (tests B1, S2 with a saturated filter) |
+| S3 | Measured Bloom FPP at design load | ≈ 1 % | **1.01 %** at 50,000 exercises (1.51 % on the small shipped catalog; noisy at n ≈ 3,000) |
+| S4 | Bloom memory vs HashSet | ≥ 50× smaller | **≈ 90× smaller** at every size |
+| S5 | Trie autocomplete at 50,000 exercises | < 10 µs and ≥ 10× faster than linear scan | **≈ 1 µs, ≈ 2,600× faster** |
+| S6 | KMP comparisons on adversarial text | ≤ 2n | **≈ 2n**, 15× fewer than naive (test K8) |
+| S7 | Server time: swap / plan on the shipped catalog | < 10 ms / < 50 ms | **≈ 2–6 ms / ≈ 3–7 ms** |
+| S8 | Invalid inputs | explicit error, never silent | **met** (section 2.4, integration tests) |
+| S9 | Taps from opening the site to a safe plan | ≤ 5 | **4** (body area, symptom, Continue, Build my plan) |
+
 ### 1.1 Constraints
 
 | Constraint | How it is met |
@@ -136,6 +150,8 @@ The interface is deliberately minimal: one solid, high-contrast panel and one de
 | Empty catalog (or unreadable file) | Every search/substitution returns **503 `CATALOG_EMPTY`**; `/health` reports `DEGRADED` and the load error. |
 | Duplicate entries (same normalised name, or same id) | First occurrence kept. Each duplicate is listed in `loadReport.duplicates` (2 in the shipped data). |
 | Invalid rows (no primary muscle, unknown movement pattern, missing text…) | Rejected and listed in `loadReport.invalid`. |
+| Uploaded dataset (`POST /api/catalog`) | Same validation as the sample file. Duplicates and invalid rows are rejected and reported; an empty upload or one where no row survives returns **400 `CATALOG_UPLOAD_EMPTY`** and the current catalog stays active. All indexes are rebuilt for an accepted upload; `POST /api/catalog/reset` restores the sample. |
+| Plan with a day count outside 2–4 | **400 `DAYS_OUT_OF_RANGE`**. |
 | Unknown or blank injury tag | **400 `UNKNOWN_INJURY_TAG`** with the list of valid tags. |
 | Unknown or ambiguous exercise | **404 `EXERCISE_NOT_FOUND`** / **400 `AMBIGUOUS_EXERCISE`**, with trie-based suggestions. |
 | No safe substitute | **200 with `status: NO_SAFE_SUBSTITUTE`**, a reason, and the full rejected list. Never an empty "OK". |
@@ -328,6 +344,13 @@ L = key/name length, P = prefix length, S = number of trie nodes in the matched 
 
 On the shipped 285-exercise catalog: n = 315 pairs, m = 3,020 bits (384 B), k = 7, fill 52.3 %, theoretical FPP 1.00 %, **measured FPP 1.51 %** over all 3,105 true-negative pairs. That is above the 1 % target. With only about 3,000 negatives the estimate is noisy (each false positive moves it by 0.03 points), and every false positive is caught by rule confirmation, so it costs time, never correctness.
 
+**Charts** (log–log, generated from `docs/benchmark_results.csv` by `docs/charts/make_charts.py`):
+
+![Trie vs linear scan](charts/prefix.svg)
+![KMP vs naive, adversarial](charts/phrase-adversarial.svg)
+![Bloom vs HashSet](charts/membership.svg)
+![End-to-end pipeline](charts/pipeline.svg)
+
 ### 6.3 Analysis: when each approach wins or loses
 
 **Trie vs linear scan.** The linear scan does O(K·P) work per keystroke, so its time grows linearly with N (15 µs → 2.8 ms, ×190 for ×500 data). Trie query time stays **flat at about 1–4 µs** because it depends only on the prefix length and the size of the output. At N = 100 the gap is only about 4× and both are far below anything a human could notice, so a naive scan is perfectly adequate for tiny catalogs. The trie pays for its speed with memory and build time: about 1.4 M nodes for 50k names, because of word-suffix indexing (each node a `TreeMap`). A compressed (radix) trie or array-based children would cut this, and is listed under future work. The trie query time even falls slightly as N grows, which is a JIT and cache-warmth effect: with bigger catalogs, 10 matches are found in a smaller part of a denser subtree.
@@ -348,12 +371,12 @@ On the shipped 285-exercise catalog: n = 315 pairs, m = 3,020 bits (384 B), k = 
 
 ## 7. Testing evidence
 
-42 JUnit 5 tests, all passing (`mvn test`). Tests marked **[EDGE]** cover boundary cases.
+43 JUnit 5 tests, all passing (`mvn test`). Tests marked **[EDGE]** cover boundary cases.
 
 * **Trie (8):** T1 empty trie [EDGE] · T2 single-character prefix [EDGE] · T3 exact full-string match [EDGE] · T4 absent/over-long prefix · T5 normalisation · T6 duplicate keys and shared keys · T7 limit · T8 property test vs linear scan (2,000 queries).
 * **KMP (8):** K1 failure-function tables · K2 overlapping matches · K3 real instruction text · K4 no match, pattern longer than text, null text [EDGE] · K5 pattern = whole text, 1-character pattern [EDGE] · K6 empty pattern rejected [EDGE] · K7 property test vs naive (3,000 cases) · K8 ≤ 2n comparisons on adversarial input.
 * **Bloom filter (8):** B1 no false negatives · B2 empty filter (zero contraindications) [EDGE] · B3 optimal m = 9,586 / k = 7 for n = 1,000, p = 1 % · B4 FPP at expected saturation within [0.5 %, 1.5 %], fill ≈ 50 % [EDGE] · B5 5× over-saturation → FPP > 40 %, still no false negatives [EDGE] · B6 m = 1 degenerate filter [EDGE] · B7 hash determinism + FNV-1a test vectors · B8 invalid parameters.
-* **Workflow and validation (10 + 5 HTTP):** happy path verified against the rule engine; **saturated filter ⇒ no rejection without confirmation**; injury with zero contraindications; no safe substitute; unknown injury; unknown/ambiguous exercise; empty catalog; duplicate/invalid rows; KMP keyword filter; rule verdicts; and HTTP-level checks through MockMvc, including the gym-station endpoints, the plan endpoint (for 3 injuries × 2–4 days, every planned exercise is re-checked against the exact rule engine and must be safe; no exercise repeats within a week; invalid day counts and unknown injuries are rejected), and the form-guide endpoint (every catalog exercise gets a demo motion; regression check that "Rotational Throw" maps to rotation, not "row").
+* **Workflow and validation (10 + 5 HTTP):** happy path verified against the rule engine; **saturated filter ⇒ no rejection without confirmation**; injury with zero contraindications; no safe substitute; unknown injury; unknown/ambiguous exercise; empty catalog; duplicate/invalid rows; KMP keyword filter; rule verdicts; and HTTP-level checks through MockMvc, including the gym-station endpoints, the plan endpoint (for 3 injuries × 2–4 days, every planned exercise is re-checked against the exact rule engine and must be safe; no exercise repeats within a week; invalid day counts and unknown injuries are rejected), the dataset upload (empty, duplicate and invalid rows; the uploaded catalog is used by the next request; reset restores the sample), and the form-guide endpoint (every catalog exercise gets a demo motion; regression check that "Rotational Throw" maps to rotation, not "row").
 
 ---
 

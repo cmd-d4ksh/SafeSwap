@@ -121,6 +121,21 @@ public class ApiController {
         return substitutionService.substitute(request);
     }
 
+    /** Upload your own exercise dataset (JSON array, same fields as data/exercises.json); validated and indexed on the server. */
+    @PostMapping("/catalog")
+    public Map<String, Object> uploadCatalog(@RequestBody(required = false) List<com.exsub.data.CatalogLoader.RawExercise> rows,
+                                             @RequestParam(required = false) String name) {
+        catalogService.replaceCatalog(rows, name);
+        return stats();
+    }
+
+    /** Restore the shipped sample dataset. */
+    @PostMapping("/catalog/reset")
+    public Map<String, Object> resetCatalog() {
+        catalogService.reset();
+        return stats();
+    }
+
     @GetMapping("/catalog/stats")
     public Map<String, Object> stats() {
         CatalogService.Snapshot s = catalogService.snapshot();
@@ -137,6 +152,7 @@ public class ApiController {
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("exercises", s.catalog().size());
+        m.put("source", catalogService.source());
         m.put("loadReport", s.report());
         m.put("nameTrie", Map.of("keys", s.catalog().nameTrie().keyCount(), "nodes", s.catalog().nameTrie().nodeCount()));
         m.put("tagTrie", Map.of("keys", s.catalog().tagTrie().keyCount(), "nodes", s.catalog().tagTrie().nodeCount()));
