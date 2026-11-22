@@ -1,6 +1,7 @@
 # Exercise Substitution & Injury-Safe Search
 
 **Team:** Daksh Shah (2402180) · Laksh Merani (2408098) · Advanced Algorithm CIA 3, 2026–27
+**Repository:** https://github.com/cmd-d4ksh/SafeSwap
 
 **Advanced Algorithms — CIA 3, Real-World Application Project**
 
@@ -99,6 +100,13 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 ---
 
 ## Build, test and run
+
+### 0. Get the code
+
+```bash
+git clone https://github.com/cmd-d4ksh/SafeSwap.git
+cd SafeSwap
+```
 
 ### 1. Backend (port 8085)
 
