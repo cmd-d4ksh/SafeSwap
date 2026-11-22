@@ -25,7 +25,7 @@ The system takes **an exercise the user can't do** and **an injury/limitation ta
 |---|---|
 | Backend in Java / Spring Boot REST; all core logic in Java | `controller → service → engine → algo` layers; the frontend only renders JSON. |
 | Assessed algorithms hand-implemented | `Trie`, `KmpMatcher`, `BloomFilter`, `BitArray`, `HashFunctions` are written from scratch. Java Collections appear only as infrastructure: a `TreeMap` as a trie node's child container, and a `long[]` as bit storage. No library trie, search, hash or Bloom-filter implementation is used. |
-| Frontend without algorithm logic or precomputed results | `frontend/app.js` only calls the API and renders the responses. |
+| Frontend without algorithm logic or precomputed results | The 3D gym (`gym.js`) and classic view (`classic.js`) only call the API and render the responses. Even each station's exercise list comes from the backend (`/api/gym/stations/{id}/exercises`, tag-trie lookups). |
 | Bloom hit ≠ final answer | Every positive triggers `RuleEngine.evaluate(...)`. Only a confirmed violation rejects an exercise. This is enforced by test `S2`, which uses a deliberately saturated filter. |
 | Database optional | JSON files on the classpath, overridable through environment variables. |
 | Reproducible | Deterministic generator (fixed order, fixed seeds), Maven build, zero-dependency Node static server. |
@@ -44,12 +44,13 @@ The system takes **an exercise the user can't do** and **an injury/limitation ta
 ```mermaid
 flowchart LR
   subgraph Browser
-    UI[index.html + app.js<br/>forms · results table · method panel]
+    UI[index.html + gym.js: 3D gym, guided 4-step flow<br/>classic.html: forms · results table · method panel]
   end
   subgraph "Spring Boot (port 8085)"
     C[ApiController<br/>+ ApiExceptionHandler]
     S1[SearchService]
     S2[SubstitutionService]
+    S3[GymService<br/>stations → equipment]
     CS[CatalogService<br/>loads JSON, builds snapshot]
     subgraph engine["engine (pure Java)"]
       CI[CatalogIndex<br/>name Trie · tag Trie · muscle index]
@@ -66,7 +67,8 @@ flowchart LR
   end
   F[(exercises.json<br/>injury_rules.json)]
   UI -- REST/JSON --> C
-  C --> S1 & S2
+  C --> S1 & S2 & S3
+  S3 --> CI
   S1 --> CI & K
   S2 --> SE
   CS --> F
@@ -105,10 +107,22 @@ POST /api/substitutions {exercise, injuryTag, maxResults, keyword, requireKeywor
 | `GET /api/exercises/autocomplete?mode=name\|tag` | Trie prefix walk |
 | `GET /api/exercises/text-search?q=` | KMP over all instruction texts (also reports naive comparison count) |
 | `POST /api/substitutions` | Trie (target) + Bloom + RuleEngine + KMP |
+| `GET /api/gym/stations`, `/api/gym/stations/{id}/exercises` | Tag-trie exact lookups on each station's equipment keys |
 | `GET /api/catalog/stats` | Bloom m, k, n, fill, theoretical and measured FPP; trie sizes; load report |
 | `GET /api/injuries`, `/api/health`, `/api/exercises/{id}` | — |
 
-### 2.3 Data validation
+### 2.3 User interface
+
+The primary UI is a **3D gym** (three.js) designed for first-time gym-goers, who often don't know exercise names. Instead of a form, the user:
+
+1. taps the machine they were going to use;
+2. picks the exercise from a short list grouped by body area;
+3. taps where it hurts on a body figure, with plain-language symptom descriptions (the `area` and `hint` fields on each injury rule);
+4. gets up to 5 swaps. The stations holding them are highlighted in the room, and tapping a card flies the camera there.
+
+The interface is deliberately minimal: one panel, one decision per step. The algorithm details (trie resolution, Bloom negatives and positives, confirmed versus cleared, rule checks skipped) are behind a **"How we checked"** disclosure, so the method stays visible without cluttering a beginner's view. The original form UI (`classic.html`) keeps the full tables for expert users and examiners.
+
+### 2.4 Data validation
 
 | Case | Behaviour |
 |---|---|
@@ -325,12 +339,12 @@ On the shipped 269-exercise catalog: n = 310 pairs, m = 2,972 bits (376 B), k = 
 
 ## 7. Testing evidence
 
-39 JUnit 5 tests, all passing (`mvn test`). Tests marked **[EDGE]** cover boundary cases.
+40 JUnit 5 tests, all passing (`mvn test`). Tests marked **[EDGE]** cover boundary cases.
 
 * **Trie (8):** T1 empty trie [EDGE] · T2 single-character prefix [EDGE] · T3 exact full-string match [EDGE] · T4 absent/over-long prefix · T5 normalisation · T6 duplicate keys and shared keys · T7 limit · T8 property test vs linear scan (2,000 queries).
 * **KMP (8):** K1 failure-function tables · K2 overlapping matches · K3 real instruction text · K4 no match, pattern longer than text, null text [EDGE] · K5 pattern = whole text, 1-character pattern [EDGE] · K6 empty pattern rejected [EDGE] · K7 property test vs naive (3,000 cases) · K8 ≤ 2n comparisons on adversarial input.
 * **Bloom filter (8):** B1 no false negatives · B2 empty filter (zero contraindications) [EDGE] · B3 optimal m = 9,586 / k = 7 for n = 1,000, p = 1 % · B4 FPP at expected saturation within [0.5 %, 1.5 %], fill ≈ 50 % [EDGE] · B5 5× over-saturation → FPP > 40 %, still no false negatives [EDGE] · B6 m = 1 degenerate filter [EDGE] · B7 hash determinism + FNV-1a test vectors · B8 invalid parameters.
-* **Workflow and validation (10 + 5 HTTP):** happy path verified against the rule engine; **saturated filter ⇒ no rejection without confirmation**; injury with zero contraindications; no safe substitute; unknown injury; unknown/ambiguous exercise; empty catalog; duplicate/invalid rows; KMP keyword filter; rule verdicts; and HTTP-level checks through MockMvc.
+* **Workflow and validation (10 + 5 HTTP):** happy path verified against the rule engine; **saturated filter ⇒ no rejection without confirmation**; injury with zero contraindications; no safe substitute; unknown injury; unknown/ambiguous exercise; empty catalog; duplicate/invalid rows; KMP keyword filter; rule verdicts; and HTTP-level checks through MockMvc, including the gym-station endpoints.
 
 ---
 

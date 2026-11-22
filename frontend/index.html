@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SafeSwap Gym</title>
+  <link rel="stylesheet" href="gym.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="scene" aria-hidden="true"></div>
+
+  <header class="brand">
+    <strong>SafeSwap</strong><span>Gym</span>
+  </header>
+
+  <ol class="steps" aria-label="Progress">
+    <li data-step="0">Machine</li>
+    <li data-step="1">Exercise</li>
+    <li data-step="2">What hurts</li>
+    <li data-step="3">Safe swaps</li>
+  </ol>
+
+  <aside id="panel" class="panel" aria-live="polite"></aside>
+
+  <div id="hoverTip" class="hover-tip" hidden></div>
+
+  <footer class="foot">
+    <span>Synthetic data · not medical advice</span>
+    <a href="classic.html">Classic view</a>
+  </footer>
+
+  <script type="module" src="gym.js"></script>
+</body>
+</html>

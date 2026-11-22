@@ -10,7 +10,20 @@ A gym-goer can't do an exercise because of an injury or limitation, for example 
 | **KMP** string matching | Matches a keyword or movement-cue phrase (e.g. `neutral spine`) inside each exercise's instruction text. Used as a ranking boost or as a filter, and in the catalog text search. |
 | **Bloom filter** (own hash functions, bit array, optimal m and k) | Fast "possibly unsafe" pre-check over the set of contraindicated *(exercise, injury)* pairs. **Every positive is confirmed by the exact rule engine** before anything is reported as unsafe. A negative is definitive, so the rule check is skipped. |
 
-Target users: gym-goers managing a minor injury, and trainers/physios who want a quick reference.
+Target users: gym-goers managing a minor injury (including complete beginners), and trainers/physios who want a quick reference.
+
+### The interface: a 3D gym
+
+The default UI (`frontend/index.html`) is a **walk-around 3D gym** built with three.js, aimed at people new to the gym:
+
+1. **Machine:** tap a machine in the 3D room, or pick it from the list. There are 8 stations: squat rack, dumbbells, cable tower, machines, kettlebells, pull-up station, mats and turf.
+2. **Exercise:** choose what you planned to do there, grouped by body area (Legs, Chest, Back…).
+3. **What hurts:** tap the spot on a body figure. Each area is described in plain words, e.g. "Hurts when bending, lifting or carrying".
+4. **Safe swaps:** see the top 5 substitutes. Stations holding a swap light up in the 3D gym, and tapping a card flies the camera there.
+
+The algorithm details (trie lookup, Bloom filter result, how many "maybe" answers the exact rules confirmed or cleared, the ranking) sit under **"How we checked"** in step 4.
+
+The original form-based UI with the full method tables is kept as **`classic.html`** (linked in the footer). It also has the KMP phrase search and the Bloom filter statistics.
 
 > **Data disclaimer.** The exercise catalog and the injury/contraindication rules are **synthetic**. The rules are *loosely inspired by common physiotherapy guidance* (e.g. "avoid axial loading with a lumbar strain", "avoid overhead pressing with shoulder impingement", "avoid deep loaded knee flexion with patellar tendinopathy"). They were **not** written or reviewed by a clinician and are **not** sourced from clinical literature. This is coursework, not medical advice.
 
@@ -39,9 +52,12 @@ Target users: gym-goers managing a minor injury, and trainers/physios who want a
 │       │   ├── data/                loader/validator, synthetic data generator
 │       │   ├── bench/               BenchmarkRunner
 │       │   ├── model/, error/, config/
-│       ├── main/resources/data/     exercises.json (271 rows → 269 unique), injury_rules.json (12 injuries)
-│       └── test/java/com/exsub/     JUnit 5 tests (39)
+│       ├── main/resources/data/     exercises.json (271 rows → 269 unique), injury_rules.json (12 injuries),
+│       │                            gym_layout.json (8 stations → equipment)
+│       └── test/java/com/exsub/     JUnit 5 tests (40)
 ├── frontend/                        plain HTML/CSS/JS + a zero-dependency Node static server
+│   ├── index.html, gym.js, gym.css  3D gym UI (three.js 0.160 from the jsDelivr CDN)
+│   └── classic.html/.js/.css        form-based UI with full method details
 ├── docs/
 │   ├── REPORT.md                    technical report
 │   ├── VIVA_PREP.md                 plain-language explainer + examiner Q&A
@@ -103,7 +119,9 @@ mvn -DskipTests package && java -jar target/exercise-substitution-1.0.0.jar
 cd frontend && node server.js
 ```
 
-Open **http://localhost:5173**. If the API runs elsewhere, add `?api=http://host:port` to the URL.
+Open **http://localhost:5173** for the 3D gym, or **http://localhost:5173/classic.html** for the classic view. If the API runs elsewhere, add `?api=http://host:port` to the URL.
+
+The 3D view loads three.js from the jsDelivr CDN, so the browser needs internet access the first time. If WebGL is unavailable, the page falls back to the same guided flow driven by lists. The classic view needs no external files at all.
 
 ### 3. Benchmarks
 
@@ -149,6 +167,8 @@ echo "[]" > /tmp/empty.json && EXSUB_DATA_EXERCISESPATH=file:/tmp/empty.json mvn
 | GET | `/api/exercises/text-search?q=&limit=` | **KMP** phrase search over instruction text (reports KMP vs naive comparison counts) |
 | GET | `/api/exercises/{id}` | One exercise |
 | POST | `/api/substitutions` | **Main workflow**: Trie target lookup → candidates → **Bloom pre-check → rule confirmation** → KMP keyword → ranking |
+| GET | `/api/gym/stations` | The 8 gym stations with exercise counts (tag-trie lookups per equipment key) |
+| GET | `/api/gym/stations/{id}/exercises` | Exercises at one station (exact **Trie** lookups on its equipment tags) |
 | GET | `/api/catalog/stats` | Load report (duplicates/invalid rows), trie sizes, Bloom m/k/n, theoretical and **measured** FPP |
 
 Errors always come back as JSON: `{status, code, message, hints[], timestamp}`. Codes include `EXERCISE_REQUIRED`, `UNKNOWN_INJURY_TAG` (hints = valid tags), `EXERCISE_NOT_FOUND` / `AMBIGUOUS_EXERCISE` (hints = trie suggestions), `INVALID_MAX_RESULTS`, `KEYWORD_REQUIRED`, `PREFIX_REQUIRED`, `MALFORMED_JSON`, and `CATALOG_EMPTY` (503).
@@ -231,7 +251,7 @@ curl -s -X POST http://localhost:8085/api/substitutions -H 'Content-Type: applic
 
 ---
 
-## Tests (39, all passing)
+## Tests (40, all passing)
 
 ```bash
 cd backend && mvn test
@@ -243,7 +263,7 @@ cd backend && mvn test
 | `TrieKmpTest$KmpTests` | 8 | failure-function table, overlapping matches, real instruction text, no match / pattern longer than text [edge], whole-text and 1-char pattern [edge], empty pattern [edge], property test vs naive, ≤ 2n comparisons |
 | `BloomFilterTest` | 8 | no false negatives, empty filter [edge], optimal m/k, FPP **at expected saturation** [edge], **over-saturation** degradation [edge], m=1 degenerate [edge], hash test vectors, invalid params |
 | `SubstitutionEngineTest` | 10 | happy path, **saturated Bloom ⇒ no rejection without rule confirmation**, **injury with zero contraindications** [edge], **no safe substitute** [edge], **unknown injury tag** [edge], unknown/ambiguous exercise, **empty catalog** [edge], **duplicate & invalid rows** [edge], KMP keyword filter, rule verdicts |
-| `ApiIntegrationTest` | 5 | HTTP layer: stats, autocomplete, validation errors, substitution, text search |
+| `ApiIntegrationTest` | 6 | HTTP layer: stats, autocomplete, validation errors, substitution, text search, gym stations |
 
 ---
 
@@ -251,11 +271,14 @@ cd backend && mvn test
 
 Capture these with the backend and frontend running:
 
-1. `docs/screenshots/01-autocomplete.png`: type `overhead pr` in the exercise box (trie suggestions plus nodes-visited line).
-2. `docs/screenshots/02-results.png`: Barbell Overhead Press + Shoulder impingement + keyword `shoulder` (ranked table, method panel, Bloom badges, KMP highlights).
-3. `docs/screenshots/03-rejected.png`: the expanded "Rejected candidates" list, with confirmed rule reasons.
-4. `docs/screenshots/04-error.png`: submit just `Squat` (ambiguous → suggestions), or an unknown injury.
-5. `docs/screenshots/05-stats.png`: the catalog & Bloom filter stats card (duplicates rejected, measured FPP).
-6. `docs/screenshots/06-tests.png`: terminal output of `mvn test` (39 tests, BUILD SUCCESS).
+1. `docs/screenshots/00-gym.png`: the 3D gym overview (step 1).
+2. `docs/screenshots/00-gym-body.png`: Squat Rack → Barbell Back Squat → the body picker with Lower back selected.
+3. `docs/screenshots/00-gym-swaps.png`: safe swaps, with highlighted stations and "How we checked" expanded.
+4. `docs/screenshots/01-autocomplete.png`: in the classic view, type `overhead pr` (trie suggestions plus nodes-visited line).
+5. `docs/screenshots/02-results.png`: in the classic view, Barbell Overhead Press + Shoulder impingement + keyword `shoulder` (ranked table, method panel, Bloom badges, KMP highlights).
+6. `docs/screenshots/03-rejected.png`: the expanded "Rejected candidates" list, with confirmed rule reasons.
+7. `docs/screenshots/04-error.png`: submit just `Squat` (ambiguous → suggestions), or an unknown injury.
+8. `docs/screenshots/05-stats.png`: the catalog & Bloom filter stats card (duplicates rejected, measured FPP).
+9. `docs/screenshots/06-tests.png`: terminal output of `mvn test` (40 tests, BUILD SUCCESS).
 
 See [`docs/REPORT.md`](docs/REPORT.md) for the technical report and [`docs/VIVA_PREP.md`](docs/VIVA_PREP.md) for viva preparation.

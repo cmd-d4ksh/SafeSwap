@@ -181,6 +181,9 @@ Yes. At N = 100 the scan takes 9 µs vs 4.7 µs for the trie: both are invisible
 
 Duplicates in the data file are dropped at load and listed in `/api/catalog/stats` (the shipped file has 2 on purpose).
 
+**Q10a. Isn't the 3D gym just decoration? Where's the algorithm?**
+The 3D gym only replaces typing with pointing. Every list it shows comes from the backend: a station's exercises come from exact **tag-trie** lookups on its equipment keys, and the swaps come from the same `/api/substitutions` pipeline (trie → Bloom filter → rule confirmation → ranking). The browser holds no catalog and no rules. It was built for first-time gym-goers who don't know exercise names but can point at a machine and at where it hurts.
+
 **Q10. Which parts are your own implementation, and which use libraries?**
 Hand-written: `Trie`, `KmpMatcher`, `BloomFilter`, `BitArray`, both hash functions, both baselines, the rule engine, and the ranking. Libraries are used only for infrastructure: Spring Boot (HTTP), Jackson (JSON), JUnit, a `TreeMap` as the child map inside a trie node, and a `long[]` as the bit storage. We call no library trie, search, hash or Bloom-filter API.
 
@@ -188,15 +191,16 @@ Hand-written: `Trie`, `KmpMatcher`, `BloomFilter`, `BitArray`, both hash functio
 
 ## 6. Live demo script (2 minutes)
 
-1. Start the backend and frontend (see README). Open http://localhost:5173.
-2. Type `overhead pr`. Point at the trie line under the box: *"15 nodes visited out of 4,612"*.
-3. Choose **Barbell Overhead Press** + **Shoulder impingement**, keyword `shoulder`, and submit.
-4. Show:
+1. Start the backend and frontend (see README). Open http://localhost:5173: the 3D gym.
+2. Tap **Squat Rack & Barbells** → **Barbell Back Squat** → tap the **lower back** on the body. The swaps light up the Dumbbell Rack and Mats in the room. Open **"How we checked"** and walk through trie → Bloom → confirmation.
+3. Footer → **Classic view**. Type `overhead pr` and point at the trie line under the box: *"15 nodes visited out of 4,612"*.
+4. Choose **Barbell Overhead Press** + **Shoulder impingement**, keyword `shoulder`, and submit.
+5. Show:
    * the banner (`OK — 10 safe substitutes from 29 candidates, 19 rejected`);
    * the target marked **TARGET UNSAFE** with its reason;
    * the **Method used** panel (Bloom negatives/positives, rule checks run vs skipped, KMP comparisons);
    * the green `BLOOM_NEGATIVE` badges and the KMP-highlighted snippets;
    * the **Rejected** list with confirmed reasons.
-5. Error states: submit `Squat` (ambiguous → suggestions), then an injury with zero contraindications (`finger-pulley-strain`), where nothing is rejected.
-6. Scroll to the stats card: m = 2,972, k = 7, measured FPP ≈ 1.17 %, 2 duplicate rows rejected at load.
-7. Terminal: run `mvn test` (39 green) and open `docs/benchmark_results.md`.
+6. Error states: submit `Squat` (ambiguous → suggestions), then an injury with zero contraindications (`finger-pulley-strain`), where nothing is rejected.
+7. Scroll to the stats card: m = 2,972, k = 7, measured FPP ≈ 1.17 %, 2 duplicate rows rejected at load.
+8. Terminal: run `mvn test` (40 green) and open `docs/benchmark_results.md`.
