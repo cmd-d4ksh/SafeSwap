@@ -49,6 +49,15 @@ public class ApiController {
         return gymService.exercises(id);
     }
 
+    /** Where each exercise is done, e.g. /api/gym/locate?ids=EX0001,EX0187 */
+    @GetMapping("/gym/locate")
+    public Map<String, GymService.Location> locate(@RequestParam(required = false) List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            throw ApiException.badRequest("IDS_REQUIRED", "Query parameter 'ids' (comma-separated exercise ids) is required.", List.of());
+        }
+        return gymService.locate(ids);
+    }
+
     @GetMapping("/health")
     public Map<String, Object> health() {
         CatalogService.Snapshot s = catalogService.snapshot();

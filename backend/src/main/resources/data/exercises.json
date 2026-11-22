@@ -2420,6 +2420,69 @@
   "tags" : [ "low-impact", "knee-friendly" ],
   "instructions" : "Set up with the stationary bike. Pedal hard for short intervals with the seat at hip height. Keep the knees tracking over the toes and drive up through the mid-foot. This keeps stress on the knee joint low. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
 }, {
+  "id" : "EX0270",
+  "name" : "Treadmill Walk",
+  "primaryMuscles" : [ "calves", "quads" ],
+  "secondaryMuscles" : [ "glutes", "hamstrings" ],
+  "equipment" : [ "treadmill" ],
+  "movementPattern" : "carry",
+  "tags" : [ "low-impact", "knee-friendly" ],
+  "instructions" : "Set up with the treadmill. Walk at a brisk pace with a tall posture and relaxed arms. Walk with short controlled steps, keeping the ribs stacked over the pelvis. This keeps stress on the knee joint low. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
+  "id" : "EX0271",
+  "name" : "Incline Treadmill Walk",
+  "primaryMuscles" : [ "glutes", "calves" ],
+  "secondaryMuscles" : [ "hamstrings", "quads" ],
+  "equipment" : [ "treadmill" ],
+  "movementPattern" : "carry",
+  "tags" : [ "low-impact" ],
+  "instructions" : "Set up with the treadmill. Set an incline of eight to twelve percent and walk without holding the rails. Walk with short controlled steps, keeping the ribs stacked over the pelvis. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
+  "id" : "EX0272",
+  "name" : "Treadmill Run",
+  "primaryMuscles" : [ "quads", "calves" ],
+  "secondaryMuscles" : [ "hamstrings", "glutes" ],
+  "equipment" : [ "treadmill" ],
+  "movementPattern" : "carry",
+  "tags" : [ "high-impact" ],
+  "instructions" : "Set up with the treadmill. Run with short quick strides and land under your hips. Walk with short controlled steps, keeping the ribs stacked over the pelvis. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
+  "id" : "EX0273",
+  "name" : "Rowing Machine",
+  "primaryMuscles" : [ "lats", "quads" ],
+  "secondaryMuscles" : [ "rhomboids", "biceps", "glutes", "core" ],
+  "equipment" : [ "rowing-machine" ],
+  "movementPattern" : "pull",
+  "tags" : [ "hinged-torso-loaded" ],
+  "instructions" : "Set up with the rowing machine. Drive with the legs first, then lean back slightly and pull the handle to the ribs. Pull by driving the elbows back and squeezing the shoulder blades together. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
+  "id" : "EX0274",
+  "name" : "Elliptical Trainer",
+  "primaryMuscles" : [ "quads", "glutes" ],
+  "secondaryMuscles" : [ "calves", "hamstrings" ],
+  "equipment" : [ "elliptical" ],
+  "movementPattern" : "squat",
+  "tags" : [ "low-impact", "knee-friendly" ],
+  "instructions" : "Set up with the elliptical. Push through the whole foot and keep a steady rhythm. Keep the knees tracking over the toes and drive up through the mid-foot. This keeps stress on the knee joint low. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
+  "id" : "EX0275",
+  "name" : "Stair Climber",
+  "primaryMuscles" : [ "glutes", "quads" ],
+  "secondaryMuscles" : [ "calves", "hamstrings" ],
+  "equipment" : [ "stair-climber" ],
+  "movementPattern" : "squat",
+  "tags" : [ "low-impact" ],
+  "instructions" : "Set up with the stair climber. Take full steps and avoid leaning on the handrails. Keep the knees tracking over the toes and drive up through the mid-foot. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
+  "id" : "EX0276",
+  "name" : "Air Bike Sprint",
+  "primaryMuscles" : [ "quads" ],
+  "secondaryMuscles" : [ "front-delts", "calves" ],
+  "equipment" : [ "air-bike" ],
+  "movementPattern" : "squat",
+  "tags" : [ "low-impact", "knee-friendly" ],
+  "instructions" : "Set up with the air bike. Push and pull the handles while pedalling hard for short bursts. Keep the knees tracking over the toes and drive up through the mid-foot. This keeps stress on the knee joint low. Control the lowering phase for two to three seconds and stop the set if you feel sharp pain."
+}, {
   "id" : "EX9001",
   "name" : "BARBELL BENCH PRESS",
   "primaryMuscles" : [ "chest" ],

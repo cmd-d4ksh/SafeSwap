@@ -142,6 +142,14 @@ public final class ExerciseCatalogGenerator {
         "Burpee|squat|quads,chest|core,front-delts|bodyweight|plyometric,high-impact,wrist-weight-bearing|Drop to a push-up, jump the feet in and jump up.",
         "Jump Rope|isolation|calves|quads|jump-rope|plyometric,high-impact|Bounce lightly on the balls of the feet.",
         "Stationary Bike Sprint|squat|quads|calves,glutes|stationary-bike|low-impact,knee-friendly|Pedal hard for short intervals with the seat at hip height.",
+        // ---------- CARDIO MACHINES (locomotion is grouped under 'carry') ----------
+        "Treadmill Walk|carry|calves,quads|glutes,hamstrings|treadmill|low-impact,knee-friendly|Walk at a brisk pace with a tall posture and relaxed arms.",
+        "Incline Treadmill Walk|carry|glutes,calves|hamstrings,quads|treadmill|low-impact|Set an incline of eight to twelve percent and walk without holding the rails.",
+        "Treadmill Run|carry|quads,calves|hamstrings,glutes|treadmill|high-impact|Run with short quick strides and land under your hips.",
+        "Rowing Machine|pull|lats,quads|rhomboids,biceps,glutes,core|rowing-machine|hinged-torso-loaded|Drive with the legs first, then lean back slightly and pull the handle to the ribs.",
+        "Elliptical Trainer|squat|quads,glutes|calves,hamstrings|elliptical|low-impact,knee-friendly|Push through the whole foot and keep a steady rhythm.",
+        "Stair Climber|squat|glutes,quads|calves,hamstrings|stair-climber|low-impact|Take full steps and avoid leaning on the handrails.",
+        "Air Bike Sprint|squat|quads|front-delts,calves|air-bike|low-impact,knee-friendly|Push and pull the handles while pedalling hard for short bursts.",
     };
 
     private static final Map<String, String> EQUIPMENT_LABEL = new LinkedHashMap<>();

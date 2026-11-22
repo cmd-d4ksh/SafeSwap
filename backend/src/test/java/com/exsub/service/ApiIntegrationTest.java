@@ -66,16 +66,36 @@ class ApiIntegrationTest {
                 .andExpect(jsonPath("$.pipeline.safetyCheck", containsString("Bloom")));
     }
 
+    @Autowired
+    GymService gymService;
+
+    @Autowired
+    CatalogService catalogService;
+
     @Test
-    void gymStationsCoverCatalogViaTagTrie() throws Exception {
+    void gymStationsPartitionCatalogViaTries() throws Exception {
         mvc.perform(get("/api/gym/stations"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(8)))
-                .andExpect(jsonPath("$[0].exerciseCount", greaterThan(0)));
+                .andExpect(jsonPath("$", hasSize(15)))
+                .andExpect(jsonPath("$[*].exerciseCount", everyItem(greaterThan(0))));
+        // every catalog exercise is placed at exactly one station
+        int total = gymService.stations().stream().mapToInt(GymService.StationSummary::exerciseCount).sum();
+        org.junit.jupiter.api.Assertions.assertEquals(0, gymService.unplacedCount());
+        org.junit.jupiter.api.Assertions.assertEquals(catalogService.snapshot().catalog().size(), total);
+
         mvc.perform(get("/api/gym/stations/cables/exercises"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.method", containsString("trie")))
                 .andExpect(jsonPath("$.exercises[*].equipment[0]", everyItem(is("cable"))));
+        mvc.perform(get("/api/gym/stations/treadmills/exercises"))
+                .andExpect(jsonPath("$.exercises[*].name", hasItem("Treadmill Walk")));
+        mvc.perform(get("/api/gym/stations/bench/exercises"))
+                .andExpect(jsonPath("$.exercises[*].name", hasItem("Barbell Bench Press")))
+                .andExpect(jsonPath("$.exercises[*].name", not(hasItem("Barbell Back Squat"))));
+        mvc.perform(get("/api/gym/locate").param("ids", "EX0001,nope"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.EX0001.stationId", is("bench")))
+                .andExpect(jsonPath("$.nope").doesNotExist());
         mvc.perform(get("/api/gym/stations/sauna/exercises"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code", is("STATION_NOT_FOUND")));
