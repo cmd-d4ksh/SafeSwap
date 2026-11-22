@@ -1,0 +1,19 @@
+package com.exsub.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+/** Allows the separately served frontend (default http://localhost:5173) to call the API. */
+@Configuration
+public class CorsConfig implements WebMvcConfigurer {
+
+    @Value("${exsub.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173}")
+    private String[] allowedOrigins;
+
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/api/**").allowedOrigins(allowedOrigins).allowedMethods("GET", "POST", "OPTIONS");
+    }
+}
