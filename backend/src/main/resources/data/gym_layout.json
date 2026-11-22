@@ -1,0 +1,10 @@
+[
+  {"id": "rack", "name": "Squat Rack & Barbells", "description": "Barbell lifts: squats, presses, deadlifts.", "equipment": ["barbell", "smith-machine", "trap-bar", "ez-bar"]},
+  {"id": "dumbbells", "name": "Dumbbell Rack", "description": "Free weights you hold in each hand.", "equipment": ["dumbbell"]},
+  {"id": "cables", "name": "Cable Tower", "description": "Adjustable pulleys for pulls, presses and isolation work.", "equipment": ["cable"]},
+  {"id": "machines", "name": "Weight Machines", "description": "Guided machines: leg press, chest press, rows. Great for beginners.", "equipment": ["machine", "assisted-machine"]},
+  {"id": "kettlebells", "name": "Kettlebells & Med Balls", "description": "Swings, carries and rotational throws.", "equipment": ["kettlebell", "medicine-ball", "plate", "sandbag"]},
+  {"id": "pullup", "name": "Pull-up & Dip Station", "description": "Bodyweight pulling, dips and back extensions.", "equipment": ["pull-up-bar", "parallel-bars", "roman-chair"]},
+  {"id": "floor", "name": "Mats & Floor Area", "description": "Bodyweight, bands, balls, benches and boxes.", "equipment": ["bodyweight", "resistance-band", "stability-ball", "ab-wheel", "push-up-handles", "suspension-trainer", "bench", "decline-bench", "plyo-box", "jump-rope"]},
+  {"id": "turf", "name": "Turf, Sled & Landmine", "description": "Sled pushes, landmine presses and the bike.", "equipment": ["sled", "landmine", "stationary-bike"]}
+]

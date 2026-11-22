@@ -13,7 +13,7 @@ import java.util.Map;
 @Service
 public class SubstitutionService {
 
-    public record InjuryInfo(String tag, String name, String description, String guidance,
+    public record InjuryInfo(String tag, String name, String area, String hint, String description, String guidance,
                              int contraindicatedExercises, List<InjuryRule.Contraindication> contraindications) { }
 
     private final CatalogService catalogService;
@@ -31,7 +31,7 @@ public class SubstitutionService {
         Map<String, Integer> counts = s.contraindications().pairsPerInjury();
         List<InjuryInfo> out = new ArrayList<>();
         for (InjuryRule r : s.rules().rules()) {
-            out.add(new InjuryInfo(r.tag(), r.name(), r.description(), r.guidance(),
+            out.add(new InjuryInfo(r.tag(), r.name(), r.area(), r.hint(), r.description(), r.guidance(),
                     counts.getOrDefault(r.tag(), 0), r.contraindications()));
         }
         return out;

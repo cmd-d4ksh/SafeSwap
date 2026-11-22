@@ -67,6 +67,23 @@ class ApiIntegrationTest {
     }
 
     @Test
+    void gymStationsCoverCatalogViaTagTrie() throws Exception {
+        mvc.perform(get("/api/gym/stations"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(8)))
+                .andExpect(jsonPath("$[0].exerciseCount", greaterThan(0)));
+        mvc.perform(get("/api/gym/stations/cables/exercises"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.method", containsString("trie")))
+                .andExpect(jsonPath("$.exercises[*].equipment[0]", everyItem(is("cable"))));
+        mvc.perform(get("/api/gym/stations/sauna/exercises"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is("STATION_NOT_FOUND")));
+        mvc.perform(get("/api/injuries"))
+                .andExpect(jsonPath("$[0].area", is("Lower back")));
+    }
+
+    @Test
     void textSearchUsesKmp() throws Exception {
         mvc.perform(get("/api/exercises/text-search").param("q", "neutral spine"))
                 .andExpect(status().isOk())

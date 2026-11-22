@@ -10,6 +10,10 @@ import java.util.List;
 public record InjuryRule(
         String tag,
         String name,
+        /** Plain-language body area shown to first-time users, e.g. "Lower back". */
+        String area,
+        /** Plain-language symptom hint, e.g. "Hurts when bending, lifting or carrying". */
+        String hint,
         String description,
         String guidance,
         List<Contraindication> contraindications) {

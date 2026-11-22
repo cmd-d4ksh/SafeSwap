@@ -186,7 +186,7 @@ class SubstitutionEngineTest {
     @Test
     @DisplayName("S10 contraindication rule set: exact rule engine verdicts for known pairs")
     void ruleEngineVerdicts() {
-        RuleEngine engine = new RuleEngine(List.of(new InjuryRule("x", "X", "", "",
+        RuleEngine engine = new RuleEngine(List.of(new InjuryRule("x", "X", "Test", "", "", "",
                 List.of(new Contraindication(InjuryRule.Kind.PATTERN, "hinge", "no hinging")))));
         Exercise hinge = new Exercise(0, "E1", "RDL", List.of("hamstrings"), List.of(), List.of("barbell"),
                 "hinge", List.of(), "text");

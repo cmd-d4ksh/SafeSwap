@@ -6,6 +6,7 @@ import com.exsub.engine.SubstitutionResult;
 import com.exsub.error.ApiException;
 import com.exsub.model.Exercise;
 import com.exsub.service.CatalogService;
+import com.exsub.service.GymService;
 import com.exsub.service.SearchService;
 import com.exsub.service.SubstitutionService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,12 +29,24 @@ public class ApiController {
     private final CatalogService catalogService;
     private final SearchService searchService;
     private final SubstitutionService substitutionService;
+    private final GymService gymService;
 
     public ApiController(CatalogService catalogService, SearchService searchService,
-                         SubstitutionService substitutionService) {
+                         SubstitutionService substitutionService, GymService gymService) {
         this.catalogService = catalogService;
         this.searchService = searchService;
         this.substitutionService = substitutionService;
+        this.gymService = gymService;
+    }
+
+    @GetMapping("/gym/stations")
+    public List<GymService.StationSummary> stations() {
+        return gymService.stations();
+    }
+
+    @GetMapping("/gym/stations/{id}/exercises")
+    public GymService.StationExercises stationExercises(@PathVariable String id) {
+        return gymService.exercises(id);
     }
 
     @GetMapping("/health")
